@@ -32,9 +32,11 @@ signs       (\(|\)|\{|\}|,|:|;)
 
 %%
 {reserved}                  printf("<%s>", yytext);
+{signs}                     printf(yytext);
+{id}                        showToken("id");
 {integernum}                showToken("integernum");
 {realnum}                   showToken("realnum");
-{id}                        showToken("id");
+{str}                       showToken("str");
 {relop}                     showToken("relop");
 {addop}                     showToken("addop");
 {mulop}                     showToken("mulop");
@@ -42,8 +44,6 @@ signs       (\(|\)|\{|\}|,|:|;)
 {and}                       showToken("and");
 {or}                        showToken("or");
 {not}                       showToken("not");
-{str}                       showToken("str");
-{signs}                     printf(yytext);
 {whitespace}                printf(yytext);
 .                           printf("lex fails to recognize this (%s)!\n", yytext);
 %%
