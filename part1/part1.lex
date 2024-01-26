@@ -11,11 +11,11 @@ letter      ([a-zA-Z])
 whitespace  ([\t\n ])
 reserved    (int|float|void|write|read|optional|while|do|if|then|else|return)
 id          ({letter}({letter}|{digit}|_)*)
-integernum  ({digit}+)  # (0|[1-9][0-9]*)
-realnum     ({digit}+\.{digit}+) # (0\.[0-9]+|[1-9][0-9]*\.[0-9]+)
+integernum  ({digit}+)
+realnum     ({digit}+\.{digit}+)
 str         ()
 relop       (==|<>|<|<=|>|>=)
-addop       (+|-)
+addop       (\+|-)
 mulop       (\*|/)
 assign      (=)
 and         (&&)
@@ -23,11 +23,11 @@ or          (\|\|)
 not         (!)
 signs       (\(|\)|\{|\}|,|:|;)
 
-# need to do:
-# strings
-# errors
-# comments
-# choose the correct option for nums
+// need to do:
+// strings
+// errors
+// comments
+// choose the correct option for nums
 
 
 %%
