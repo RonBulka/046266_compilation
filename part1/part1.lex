@@ -1,10 +1,12 @@
 %{
 #include <stdio.h>
 void showToken(char *);
+void printString();
+void yyerror();
 %}
 
 %option yylineno noyywrap
-%option   outfile="flex_example1.c" header-file="flex_example1.h"
+%option outfile="part1.c" header-file="part1.h"
 
 digit       ([0-9])
 letter      ([a-zA-Z])
@@ -13,30 +15,24 @@ reserved    (int|float|void|write|read|optional|while|do|if|then|else|return)
 id          ({letter}({letter}|{digit}|_)*)
 integernum  ({digit}+)
 realnum     ({digit}+\.{digit}+)
-str         ()
+str         (\"(\\[nt"]|[^"\\\r\n])*\")
 relop       (==|<>|<|<=|>|>=)
 addop       (\+|-)
-mulop       (\*|/)
+mulop       (\*|\/)
 assign      (=)
 and         (&&)
 or          (\|\|)
 not         (!)
 signs       (\(|\)|\{|\}|,|:|;)
-
-// need to do:
-// strings
-// errors
-// comments
-// choose the correct option for nums
-
+comment     (#.*)
 
 %%
 {reserved}                  printf("<%s>", yytext);
-{signs}                     printf(yytext);
+{signs}                     printf("%s", yytext);
 {id}                        showToken("id");
 {integernum}                showToken("integernum");
 {realnum}                   showToken("realnum");
-{str}                       showToken("str");
+{str}                       printString();
 {relop}                     showToken("relop");
 {addop}                     showToken("addop");
 {mulop}                     showToken("mulop");
@@ -44,8 +40,9 @@ signs       (\(|\)|\{|\}|,|:|;)
 {and}                       showToken("and");
 {or}                        showToken("or");
 {not}                       showToken("not");
-{whitespace}                printf(yytext);
-.                           printf("lex fails to recognize this (%s)!\n", yytext);
+{whitespace}                printf("%s", yytext);
+{comment}                   ;
+.                           yyerror();
 %%
 
 void showToken(char *name)
@@ -53,3 +50,20 @@ void showToken(char *name)
     printf("<%s,%s>", name, yytext);
 }
 
+
+// magic number are bad
+void printString()
+{
+    int length = strlen(yytext);
+    char *newStr = malloc(length - 1);
+    strncpy(newStr, yytext + 1, length - 2);
+    newStr[length - 2] = '\0';
+    printf("<str,%s>", newStr);
+    free(newStr);
+}
+
+void yyerror()
+{
+    printf("\nLexical error: '%s' in line number %d\n", yytext, yylineno);
+    exit(1);
+}
