@@ -8,13 +8,11 @@ void yyerror();
 %option yylineno noyywrap
 %option outfile="part1.c" header-file="part1.h"
 
-digit       ([0-9])
-letter      ([a-zA-Z])
-whitespace  ([\t\n ])
+whitespace  ([\t\r\n ])
 reserved    (int|float|void|write|read|optional|while|do|if|then|else|return)
-id          ({letter}({letter}|{digit}|_)*)
-integernum  ({digit}+)
-realnum     ({digit}+\.{digit}+)
+id          ([a-zA-Z]([a-zA-Z]|[0-9]|_)*)
+integernum  ([0-9]+)
+realnum     ([0-9]+\.[0-9]+)
 str         (\"(\\[nt"]|[^"\\\r\n])*\")
 relop       (==|<>|<|<=|>|>=)
 addop       (\+|-)

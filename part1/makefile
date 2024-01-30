@@ -1,9 +1,9 @@
-CC = gcc
-CCFLAGS = -g -Wall -std=c99
-CCLINK = $(CC)
-OBJS = part1.o
-EXEC = part1
-RM = rm -rf *.o part1.c part1.h
+CC=gcc
+CCFLAGS=-g -Wall -std=c99
+CCLINK=$(CC)
+OBJS=part1.o
+EXEC=part1
+RM=rm -rf part1.c part1.h part1.o part1
 
 $(EXEC): $(OBJS)
 	$(CCLINK) $(CCFLAGS) -o $(EXEC) $(OBJS) -ll
