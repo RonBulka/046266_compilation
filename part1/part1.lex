@@ -1,5 +1,6 @@
 %{
 #include <stdio.h>
+#define CUT_QUOTES 2
 void showToken(char *);
 void printString();
 void yyerror();
@@ -48,14 +49,12 @@ void showToken(char *name)
     printf("<%s,%s>", name, yytext);
 }
 
-
-// magic number are bad
 void printString()
 {
     int length = strlen(yytext);
-    char *newStr = malloc(length - 1);
-    strncpy(newStr, yytext + 1, length - 2);
-    newStr[length - 2] = '\0';
+    char *newStr = malloc(length + 1 - CUT_QUOTES);
+    strncpy(newStr, yytext + 1, length - CUT_QUOTES);
+    newStr[length - CUT_QUOTES] = '\0';
     printf("<str,%s>", newStr);
     free(newStr);
 }
