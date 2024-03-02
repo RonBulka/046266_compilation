@@ -1,8 +1,8 @@
 %{
     #include "part2.hpp"
 	#include "part2_helpers.h"
+    #include <iostream>
 
-    #include<iostream>
     using namespace std;
     
 	extern char *yytext;
@@ -21,6 +21,7 @@
 %token RELOP ADDOP MULOP ASSIGN AND OR NOT
 %type <node> PROGRAM FDEFS FUNC_DEC_API FUNC_DEF_API FUNC_DEF_ARGLIST_OPT FUNC_DEC_ARGLIST_OPT DCL_OPT DCL_OPT_VAL FUNC_ARGLIST BLK DCL TYPE STLIST STMT RETURN WRITE READ ASSN LVAL CNTRL BEXP EXP NUM CALL CALL_ARGS CALL_ARGLIST
 /* %token WHITESPACE */
+/* will need to do the assoc*/
 %left '<'
 %right '>'
 
@@ -31,8 +32,7 @@ PROGRAM : FDEFS { parseTree = makeNode("PROGRAM", NULL, $1.node);}
 
 FDEFS :   FDEFS FUNC_DEF_API BLK { $$.node = makeNode("FDEFS", NULL, concatList($1.node, concatList($2.node, $3.node)));}
 		| FDEFS FUNC_DEC_API { $$.node = makeNode("FDEFS", NULL, concatList($1.node, $2.node));}
-		| /* empty */ { $1.node = makenode("EPSILON", NULL, NULL);
-						$$.node = makenode("FDEFS", NULL, $1.node); }
+		| /* empty */ { $$.node = makenode("FDEFS", NULL, makenode("EPSILON", NULL, NULL)); }
 ;
 
 FUNC_DEC_API :   TYPE ID LPAREN RPAREN SEMICOLON { concatList($1.node, $2.node);
@@ -145,8 +145,7 @@ TYPE : INT { $$.node = makeNode("TYPE", NULL, $1.node);}
 
 STLIST : STLIST STMT {concatList($1.node, $2.node);
 					  $$.node = makeNode("STLIST", NULL, $1.node);}
-		 | /* empty */ { $1.node = makeNode("EPSILON", NULL, NULL);
-						 $$.node = makeNode("STLIST", NULL, $1.node);}
+		 | /* empty */ { $$.node = makeNode("STLIST", NULL, makeNode("EPSILON", NULL, NULL));}
 ;
 
 STMT : DCL SEMICOLON {concatList($1.node, $2.node);
@@ -178,6 +177,7 @@ WRITE : WRITE_ LPAREN EXP RPAREN SEMICOLON { concatList($1.node, $2.node);
 											  concatList($4.node, $5.node);
 											  $$.node = makeNode("WRITE", NULL, $1.node);}
 ;
+
 READ : READ_ LPAREN LVAL RPAREN SEMICOLON { concatList($1.node, $2.node);
 										   concatList($2.node, $3.node);
 										   concatList($3.node, $4.node);
@@ -249,8 +249,7 @@ CALL : ID LPAREN CALL_ARGS RPAREN { concatList($1.node, $2.node);
 ;
 
 CALL_ARGS : CALL_ARGLIST { $$.node = makeNode("CALL_ARGS", NULL, $1.node);}
-			| /* empty */ { $1.node = makeNode("EPSILON", NULL, NULL);
-							$$.node = makeNode("CALL_ARGS", NULL, $1.node);};
+			| /* empty */ { $$.node = makeNode("CALL_ARGS", NULL, makeNode("EPSILON", NULL, NULL));};
 CALL_ARGLIST : CALL_ARGLIST COMMA EXP { concatList($1.node, $2.node);
 										concatList($2.node, $3.node);
 										$$.node = makeNode("CALL_ARGLIST", NULL, $1.node);}

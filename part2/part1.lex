@@ -119,9 +119,6 @@ comment     (#.*)
 */
 
 %%
-/* {reserved}                  {yylval.c = strdup(yytext); 
-                             return RESERVED;} */
-
 {int}                       {yylval.node = makeNode("int", NULL, NULL);
                                 return INT;}
 {float}                     {yylval.node = makeNode("float", NULL, NULL);
