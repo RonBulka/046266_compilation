@@ -1,0 +1,43 @@
+%{
+    #include "example2.hpp"
+
+    #include<iostream>
+    using namespace std;
+    
+	extern char *yytext;
+	extern int yylex();
+	void yyerror(char const * message);
+%}
+
+%token NUM CHAR
+%left '<'
+%right '>'
+
+%%
+
+prog : 		chars '\n'		{cout << "Result = " << $$.c << endl; return 0;}
+		| nums '\n'		{cout << "Result = " << $$.i << endl; return 0;}
+;
+
+chars :		CHAR			{$$.c = $1.c;}
+		| chars '<' chars	{$$.c = min($1.c, $3.c); cout << "Reducing: " << $1.c << "<" << $3.c << " ==> " << $$.c << endl;}
+		| chars '>' chars	{$$.c = max($1.c, $3.c); cout << "Reducing: " << $1.c << ">" << $3.c << " ==> " << $$.c << endl;}
+;
+
+nums :		NUM			{$$.i = $1.i;}
+		| nums '<' nums		{$$.i = min($1.i, $3.i); cout << "Reducing: " << $1.i << "<" << $3.i << " ==> " << $$.i << endl;}
+		| nums '>' nums		{$$.i = max($1.i, $3.i); cout << "Reducing: " << $1.i << ">" << $3.i << " ==> " << $$.i << endl;}
+;
+
+%%
+
+int main()
+{
+    return yyparse();
+}
+
+void yyerror(char const * message)
+{
+	cerr << "Parse error: " << message << " at token '" << yytext << "'" << endl;
+	exit(0);
+}
