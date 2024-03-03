@@ -92,15 +92,15 @@ void dumpParseTree(void)
 /**************************************************************************/
 /*                           Main of parser                               */
 /**************************************************************************/
-int main(void)
-{
-    int rc;
-#if YYDEBUG
-    yydebug=1;
-#endif
-    rc = yyparse();
-    if (rc == 0) { // Parsed successfully
-        dumpParseTree();
-    }
-    return rc;
-}
+// int main(void)
+// {
+//     int rc;
+// #if YYDEBUG
+//     yydebug=1;
+// #endif
+//     rc = yyparse();
+//     if (rc == 0) { // Parsed successfully
+//         dumpParseTree();
+//     }
+//     return rc;
+// }

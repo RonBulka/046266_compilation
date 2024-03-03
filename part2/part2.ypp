@@ -2,269 +2,303 @@
     #include "part2.hpp"
 	#include "part2_helpers.h"
     #include <iostream>
+	#include <stdio.h>
 
     using namespace std;
     
 	extern char *yytext;
+	extern int yylineno;
 	extern int yylex();
-	extern ParserNode *parseTree; /* Root of parse tree. Defined in the parser. */
+	ParserNode *parseTree; /* Root of parse tree. Defined in the parser. */
 	
 	void yyerror(char const * message);
 %}
-
+// declare union type for tokens
 %union {
 	ParserNode *node;
 }
-%token INT FLOAT VOID WRITE_ READ_ OPTIONAL WHILE DO IF THEN ELSE RETURN_
-%token LPAREN RPAREN LBRACE RBRACE COMMA COLON SEMICOLON 
-%token ID INTEGERNUM REALNUM STR 
-%token RELOP ADDOP MULOP ASSIGN AND OR NOT
+// declare tokens we get from lexer and their types
+%token <node> INT FLOAT VOID WRITE_ READ_ OPTIONAL WHILE DO IF THEN ELSE RETURN_
+%token <node> LPAREN RPAREN LBRACE RBRACE COMMA COLON SEMICOLON 
+%token <node> ID INTEGERNUM REALNUM STR 
+%token <node> RELOP ADDOP MULOP ASSIGN AND OR NOT
+// declare non-terminal symbols and their types
 %type <node> PROGRAM FDEFS FUNC_DEC_API FUNC_DEF_API FUNC_DEF_ARGLIST_OPT FUNC_DEC_ARGLIST_OPT DCL_OPT DCL_OPT_VAL FUNC_ARGLIST BLK DCL TYPE STLIST STMT RETURN WRITE READ ASSN LVAL CNTRL BEXP EXP NUM CALL CALL_ARGS CALL_ARGLIST
-/* %token WHITESPACE */
-/* will need to do the assoc*/
-%left '<'
-%right '>'
+// define associativity for relevant tokens
+%left RELOP ADDOP MULOP AND OR COMMA LBRACE RBRACE
+%right ASSIGN NOT LPAREN RPAREN ELSE THEN // make sure that the right associativity is correct
+
+%%
+// define grammar rules
+// root rule
+PROGRAM : FDEFS { parseTree = makeNode("PROGRAM", NULL, $1);}
+;
+
+FDEFS :   FDEFS FUNC_DEF_API BLK { $$ = makeNode("FDEFS", NULL, concatList($1, concatList($2, $3)));}
+		| FDEFS FUNC_DEC_API { $$ = makeNode("FDEFS", NULL, concatList($1, $2));}
+		| /* empty */ { $$ = makeNode("FDEFS", NULL, makeNode("EPSILON", NULL, NULL)); } %empty
+;
+
+// function declaration rules
+FUNC_DEC_API :   TYPE ID LPAREN RPAREN SEMICOLON { concatList($1, $2);
+												   concatList($2, $3);
+												   concatList($3, $4);
+												   concatList($4, $5);
+												   $$ = makeNode("FUNC_DEC_API", NULL, $1);}
+			   | TYPE ID LPAREN FUNC_ARGLIST RPAREN SEMICOLON { concatList($1, $2);
+																concatList($2, $3);
+																concatList($3, $4);
+																concatList($4, $5);
+																concatList($5, $6);
+																$$ = makeNode("FUNC_DEC_API", NULL, $1);}
+			   | TYPE ID LPAREN FUNC_DEC_ARGLIST_OPT RPAREN SEMICOLON { concatList($1, $2);
+																		concatList($2, $3);
+																		concatList($3, $4);
+																		concatList($4, $5);
+																		concatList($5, $6);
+																		$$ = makeNode("FUNC_DEC_API", NULL, $1);}
+			   | TYPE ID LPAREN FUNC_ARGLIST COMMA FUNC_DEC_ARGLIST_OPT RPAREN SEMICOLON { concatList($1, $2);
+																						   concatList($2, $3);
+																						   concatList($3, $4);
+																						   concatList($4, $5);
+																						   concatList($5, $6);
+																						   concatList($6, $7);
+																						   concatList($7, $8);
+																						   $$ = makeNode("FUNC_DEC_API", NULL, $1);}
+;
+
+FUNC_DEC_ARGLIST_OPT :   FUNC_DEC_ARGLIST_OPT COMMA DCL_OPT { concatList($1, $2);
+															  concatList($2, $3);
+															  $$ = makeNode("FUNC_DEC_ARGLIST_OPT", NULL, $1);}
+					   | DCL_OPT { $$ = makeNode("FUNC_DEC_ARGLIST_OPT", NULL, $1);}
+;
+
+DCL_OPT : ID COLON OPTIONAL TYPE {concatList($1, $2);
+								  concatList($2, $3);
+								  concatList($3, $4);
+								  $$ = makeNode("DCL_OPT", NULL, $1);}
+		  | ID COMMA DCL_OPT{concatList($1, $2);
+							 concatList($2, $3);
+							 $$ = makeNode("DCL_OPT", NULL, $1);}
+;
+
+// function definition rules
+FUNC_DEF_API : TYPE ID LPAREN RPAREN {concatList($1, $2);
+									  concatList($2, $3);
+									  concatList($3, $4);
+									  $$ = makeNode("FUNC_DEF_API", NULL, $1);}
+			   | TYPE ID LPAREN FUNC_ARGLIST RPAREN {concatList($1, $2);
+													 concatList($2, $3);
+													 concatList($3, $4);
+													 concatList($4, $5);
+													 $$ = makeNode("FUNC_DEF_API", NULL, $1);}
+			   | TYPE ID LPAREN FUNC_DEF_ARGLIST_OPT RPAREN {concatList($1, $2);
+															concatList($2, $3);
+															concatList($3, $4);
+															concatList($4, $5);
+															$$ = makeNode("FUNC_DEF_API", NULL, $1);}
+			   | TYPE ID LPAREN FUNC_ARGLIST COMMA FUNC_DEF_ARGLIST_OPT RPAREN {concatList($1, $2);
+																				concatList($2, $3);
+																				concatList($3, $4);
+																				concatList($4, $5);
+																				concatList($5, $6);
+																				concatList($6, $7);
+																				$$ = makeNode("FUNC_DEF_API", NULL, $1);}
+;
+
+FUNC_DEF_ARGLIST_OPT : FUNC_DEF_ARGLIST_OPT COMMA DCL_OPT_VAL {concatList($1, $2);
+															   concatList($2, $3);
+															   $$ = makeNode("FUNC_DEF_ARGLIST_OPT", NULL, $1);}
+					   | DCL_OPT_VAL{ $$ = makeNode("FUNC_DEF_ARGLIST_OPT", NULL, $1);}
+;
+
+DCL_OPT_VAL : ID ASSIGN NUM COLON OPTIONAL TYPE {concatList($1, $2);
+												concatList($2, $3);
+												concatList($3, $4);
+												concatList($4, $5);
+												concatList($5, $6);
+												$$ = makeNode("DCL_OPT_VAL", NULL, $1);}
+			  | ID ASSIGN NUM COMMA DCL_OPT_VAL {concatList($1, $2);
+												 concatList($2, $3);
+												 concatList($3, $4);
+												 concatList($4, $5);
+												 $$ = makeNode("DCL_OPT_VAL", NULL, $1);}
+;
+
+// function argument list rules
+FUNC_ARGLIST : FUNC_ARGLIST COMMA DCL {concatList($1, $2);
+									   concatList($2, $3);
+									   $$ = makeNode("FUNC_ARGLIST", NULL, $1);}
+			   | DCL { $$ = makeNode("FUNC_ARGLIST", NULL, $1);}
+;
+
+// block rules
+BLK : LBRACE STLIST RBRACE {concatList($1, $2);
+							concatList($2, $3);
+							$$ = makeNode("BLK", NULL, $1);}
+;
+
+DCL : ID COLON TYPE {concatList($1, $2);
+					 concatList($2, $3);
+					 $$ = makeNode("DCL", NULL, $1);}
+	  | ID COMMA DCL {concatList($1, $2);
+					  concatList($2, $3);
+					  $$ = makeNode("DCL", NULL, $1);}
+;
+
+// type rules
+TYPE : INT { $$ = makeNode("TYPE", NULL, $1);}
+	   | FLOAT { $$ = makeNode("TYPE", NULL, $1);}
+	   | VOID{ $$ = makeNode("TYPE", NULL, $1);}
+;
+
+// statement list rules
+STLIST : STLIST STMT {concatList($1, $2);
+					  $$ = makeNode("STLIST", NULL, $1);}
+		 | /* empty */ { $$ = makeNode("STLIST", NULL, makeNode("EPSILON", NULL, NULL));} %empty
+;
+
+// statement rules
+STMT : DCL SEMICOLON {concatList($1, $2);
+					  $$ = makeNode("STMT", NULL, $1);}
+	   | ASSN { $$ = makeNode("STMT", NULL, $1);}
+	   | EXP SEMICOLON {concatList($1, $2);
+						$$ = makeNode("STMT", NULL, $1);}
+	   | CNTRL { $$ = makeNode("STMT", NULL, $1);}
+	   | READ { $$ = makeNode("STMT", NULL, $1);}
+	   | WRITE { $$ = makeNode("STMT", NULL, $1);}
+	   | RETURN { $$ = makeNode("STMT", NULL, $1);}
+	   | BLK {$$ = makeNode("STMT", NULL, $1);}
+;
+
+// return, write, read, assignment rules
+RETURN : RETURN_ EXP SEMICOLON {concatList($1, $2);
+								concatList($2, $3);
+								$$ = makeNode("RETURN", NULL, $1);}
+	   | RETURN_ SEMICOLON { $$ = makeNode("RETURN", NULL, $1);}
+;
+
+WRITE : WRITE_ LPAREN EXP RPAREN SEMICOLON { concatList($1, $2);
+											concatList($2, $3);
+											concatList($3, $4);
+											concatList($4, $5);
+											$$ = makeNode("WRITE", NULL, $1);}
+		| WRITE_ LPAREN STR RPAREN SEMICOLON { concatList($1, $2);
+											  concatList($2, $3);
+											  concatList($3, $4);
+											  concatList($4, $5);
+											  $$ = makeNode("WRITE", NULL, $1);}
+;
+
+READ : READ_ LPAREN LVAL RPAREN SEMICOLON { concatList($1, $2);
+										   concatList($2, $3);
+										   concatList($3, $4);
+										   concatList($4, $5);
+										   $$ = makeNode("READ", NULL, $1);};
+ASSN : LVAL ASSIGN EXP SEMICOLON { concatList($1, $2);
+								   concatList($2, $3);
+								   concatList($3, $4);
+								   $$ = makeNode("ASSN", NULL, $1);}
+;
+
+LVAL : ID { $$ = makeNode("LVAL", NULL, $1);}
+;
+
+// control flow rules
+CNTRL : IF BEXP THEN STMT ELSE STMT { concatList($1, $2);
+									  concatList($2, $3);
+									  concatList($3, $4);
+									  concatList($4, $5);
+									  concatList($5, $6);
+									  $$ = makeNode("CNTRL", NULL, $1);}
+		| IF BEXP THEN STMT { concatList($1, $2);
+							  concatList($2, $3);
+							  concatList($3, $4);
+							  $$ = makeNode("CNTRL", NULL, $1);}
+		| WHILE BEXP DO STMT { concatList($1, $2);
+							   concatList($2, $3);
+							   concatList($3, $4);
+							   $$ = makeNode("CNTRL", NULL, $1);}
+;
+
+// boolean and expression rules
+BEXP : BEXP OR BEXP { concatList($1, $2);
+					  concatList($2, $3);
+					  $$ = makeNode("BEXP", NULL, $1);}
+	   | BEXP AND BEXP { concatList($1, $2);
+						concatList($2, $3);
+						$$ = makeNode("BEXP", NULL, $1);}
+	   | NOT BEXP { concatList($1, $2);
+					$$ = makeNode("BEXP", NULL, $1);}
+	   | EXP RELOP EXP { concatList($1, $2);
+						 concatList($2, $3);
+						 $$ = makeNode("BEXP", NULL, $1);}
+	   | LPAREN BEXP RPAREN { concatList($1, $2);
+							  concatList($2, $3);
+							  $$ = makeNode("BEXP", NULL, $1);}
+;
+
+// expression rules
+EXP : EXP ADDOP EXP { concatList($1, $2);
+					 concatList($2, $3);
+					 $$ = makeNode("EXP", NULL, $1);}
+	  | EXP MULOP EXP { concatList($1, $2);
+						concatList($2, $3);
+						$$ = makeNode("EXP", NULL, $1);}
+	  | LPAREN EXP RPAREN { concatList($1, $2);
+							concatList($2, $3);
+							$$ = makeNode("EXP", NULL, $1);}
+	  | LPAREN TYPE RPAREN EXP { concatList($1, $2);
+								  concatList($2, $3);
+								  concatList($3, $4);
+								  $$ = makeNode("EXP", NULL, $1);}
+	  | ID { $$ = makeNode("EXP", NULL, $1);}
+	  | NUM { $$ = makeNode("EXP", NULL, $1);}
+	  | CALL { $$ = makeNode("EXP", NULL, $1);}
+;
+
+// number rules
+NUM : INTEGERNUM { $$ = makeNode("NUM", NULL, $1); }
+	  | REALNUM { $$ = makeNode("NUM", NULL, $1); }
+;
+
+// function call rules
+CALL : ID LPAREN CALL_ARGS RPAREN { concatList($1, $2);
+								   concatList($2, $3);
+								   concatList($3, $4);
+								   $$ = makeNode("CALL", NULL, $1);}
+;
+
+// function call argument rules
+CALL_ARGS : CALL_ARGLIST { $$ = makeNode("CALL_ARGS", NULL, $1);}
+			| /* empty */ { $$ = makeNode("CALL_ARGS", NULL, makeNode("EPSILON", NULL, NULL));} %empty
+;
+
+// function call argument list rules
+CALL_ARGLIST : CALL_ARGLIST COMMA EXP { concatList($1, $2);
+										concatList($2, $3);
+										$$ = makeNode("CALL_ARGLIST", NULL, $1);}
+			   | EXP { $$ = makeNode("CALL_ARGLIST", NULL, $1);}
+;
 
 %%
 
-PROGRAM : FDEFS { parseTree = makeNode("PROGRAM", NULL, $1.node);}
-;
-
-FDEFS :   FDEFS FUNC_DEF_API BLK { $$.node = makeNode("FDEFS", NULL, concatList($1.node, concatList($2.node, $3.node)));}
-		| FDEFS FUNC_DEC_API { $$.node = makeNode("FDEFS", NULL, concatList($1.node, $2.node));}
-		| /* empty */ { $$.node = makenode("FDEFS", NULL, makenode("EPSILON", NULL, NULL)); }
-;
-
-FUNC_DEC_API :   TYPE ID LPAREN RPAREN SEMICOLON { concatList($1.node, $2.node);
-												   concatList($2.node, $3.node);
-												   concatList($3.node, $4.node);
-												   concatList($4.node, $5.node);
-												   $$.node = makeNode("FUNC_DEC_API", NULL, $1.node);}
-			   | TYPE ID LPAREN FUNC_ARGLIST RPAREN SEMICOLON { concatList($1.node, $2.node);
-																concatList($2.node, $3.node);
-																concatList($3.node, $4.node);
-																concatList($4.node, $5.node);
-																concatList($5.node, $6.node);
-																$$.node = makeNode("FUNC_DEC_API", NULL, $1.node);}
-			   | TYPE ID LPAREN FUNC_DEC_ARGLIST_OPT RPAREN SEMICOLON { concatList($1.node, $2.node);
-																		concatList($2.node, $3.node);
-																		concatList($3.node, $4.node);
-																		concatList($4.node, $5.node);
-																		concatList($5.node, $6.node);
-																		$$.node = makeNode("FUNC_DEC_API", NULL, $1.node);}
-			   | TYPE ID LPAREN FUNC_ARGLIST COMMA FUNC_DEC_ARGLIST_OPT RPAREN SEMICOLON { concatList($1.node, $2.node);
-																						   concatList($2.node, $3.node);
-																						   concatList($3.node, $4.node);
-																						   concatList($4.node, $5.node);
-																						   concatList($5.node, $6.node);
-																						   concatList($6.node, $7.node);
-																						   concatList($7.node, $8.node);
-																						   $$.node = makeNode("FUNC_DEC_API", NULL, $1.node);}
-;
-
-FUNC_DEC_ARGLIST_OPT :   FUNC_DEC_ARGLIST_OPT COMMA DCL_OPT { concatList($1.node, $2.node);
-															  concatList($2.node, $3.node);
-															  $$.node = makeNode("FUNC_DEC_ARGLIST_OPT", NULL, $1.node);}
-					   | DCL_OPT { $$.node = makeNode("FUNC_DEC_ARGLIST_OPT", NULL, $1.node);}
-;
-
-DCL_OPT : ID COLON OPTIONAL TYPE {concatList($1.node, $2.node);
-								  concatList($2.node, $3.node);
-								  concatList($3.node, $4.node);
-								  $$.node = makeNode("DCL_OPT", NULL, $1.node);}
-		  | ID COMMA DCL_OPT{concatList($1.node, $2.node);
-							 concatList($2.node, $3.node);
-							 $$.node = makeNode("DCL_OPT", NULL, $1.node);}
-;
-
-FUNC_DEF_API : TYPE ID LPAREN RPAREN {concatList($1.node, $2.node);
-									  concatList($2.node, $3.node);
-									  concatList($3.node, $4.node);
-									  $$.node = makeNode("FUNC_DEF_API", NULL, $1.node);}
-			   | TYPE ID LPAREN FUNC_ARGLIST RPAREN {concatList($1.node, $2.node);
-													 concatList($2.node, $3.node);
-													 concatList($3.node, $4.node);
-													 concatList($4.node, $5.node);
-													 $$.node = makeNode("FUNC_DEF_API", NULL, $1.node);}
-			   | TYPE ID LPAREN FUNC_DEF_ARGLIST_OPT RPAREN {concatList($1.node, $2.node);
-															concatList($2.node, $3.node);
-															concatList($3.node, $4.node);
-															concatList($4.node, $5.node);
-															$$.node = makeNode("FUNC_DEF_API", NULL, $1.node);}
-			   | TYPE ID LPAREN FUNC_ARGLIST COMMA FUNC_DEF_ARGLIST_OPT RPAREN {concatList($1.node, $2.node);
-																				concatList($2.node, $3.node);
-																				concatList($3.node, $4.node);
-																				concatList($4.node, $5.node);
-																				concatList($5.node, $6.node);
-																				concatList($6.node, $7.node);
-																				$$.node = makeNode("FUNC_DEF_API", NULL, $1.node);}
-;
-
-FUNC_DEF_ARGLIST_OPT : FUNC_DEF_ARGLIST_OPT COMMA DCL_OPT_VAL {concatList($1.node, $2.node);
-															   concatList($2.node, $3.node);
-															   $$.node = makeNode("FUNC_DEF_ARGLIST_OPT", NULL, $1.node);}
-					   | DCL_OPT_VAL{ $$.node = makeNode("FUNC_DEF_ARGLIST_OPT", NULL, $1.node);}
-;
-
-DCL_OPT_VAL : ID ASSIGN NUM COLON OPTIONAL TYPE {concatList($1.node, $2.node);
-												concatList($2.node, $3.node);
-												concatList($3.node, $4.node);
-												concatList($4.node, $5.node);
-												concatList($5.node, $6.node);
-												$$.node = makeNode("DCL_OPT_VAL", NULL, $1.node);}
-			  | ID ASSIGN NUM COMMA DCL_OPT_VAL {concatList($1.node, $2.node);
-												 concatList($2.node, $3.node);
-												 concatList($3.node, $4.node);
-												 concatList($4.node, $5.node);
-												 $$.node = makeNode("DCL_OPT_VAL", NULL, $1.node);}
-;
-
-FUNC_ARGLIST : FUNC_ARGLIST COMMA DCL {concatList($1.node, $2.node);
-									   concatList($2.node, $3.node);
-									   $$.node = makeNode("FUNC_ARGLIST", NULL, $1.node);}
-			   | DCL { $$.node = makeNode("FUNC_ARGLIST", NULL, $1.node);}
-;
-
-BLK : LBRACE STLIST RBRACE {concatList($1.node, $2.node);
-							concatList($2.node, $3.node);
-							$$.node = makeNode("BLK", NULL, $1.node);}
-;
-
-DCL : ID COLON TYPE {concatList($1.node, $2.node);
-					 concatList($2.node, $3.node);
-					 $$.node = makeNode("DCL", NULL, $1.node);}
-	  | ID COMMA DCL {concatList($1.node, $2.node);
-					  concatList($2.node, $3.node);
-					  $$.node = makeNode("DCL", NULL, $1.node);}
-;
-
-TYPE : INT { $$.node = makeNode("TYPE", NULL, $1.node);}
-	   | FLOAT { $$.node = makeNode("TYPE", NULL, $1.node);}
-	   | VOID{ $$.node = makeNode("TYPE", NULL, $1.node);}
-;
-
-STLIST : STLIST STMT {concatList($1.node, $2.node);
-					  $$.node = makeNode("STLIST", NULL, $1.node);}
-		 | /* empty */ { $$.node = makeNode("STLIST", NULL, makeNode("EPSILON", NULL, NULL));}
-;
-
-STMT : DCL SEMICOLON {concatList($1.node, $2.node);
-					  $$.node = makeNode("STMT", NULL, $1.node);}
-	   | ASSN { $$.node = makeNode("STMT", NULL, $1.node);}
-	   | EXP SEMICOLON {concatList($1.node, $2.node);
-						$$.node = makeNode("STMT", NULL, $1.node);}
-	   | CNTRL { $$.node = makeNode("STMT", NULL, $1.node);}
-	   | READ { $$.node = makeNode("STMT", NULL, $1.node);}
-	   | WRITE { $$.node = makeNode("STMT", NULL, $1.node);}
-	   | RETURN { $$.node = makeNode("STMT", NULL, $1.node);}
-	   | BLK {$$.node = makeNode("STMT", NULL, $1.node);}
-;
-
-RETURN : RETURN_ EXP SEMICOLON {concatList($1.node, $2.node);
-								concatList($2.node, $3.node);
-								$$.node = makeNode("RETURN", NULL, $1.node);}
-	   | RETURN_ SEMICOLON { $$.node = makeNode("RETURN", NULL, $1.node);}
-;
-
-WRITE : WRITE_ LPAREN EXP RPAREN SEMICOLON { concatList($1.node, $2.node);
-											concatList($2.node, $3.node);
-											concatList($3.node, $4.node);
-											concatList($4.node, $5.node);
-											$$.node = makeNode("WRITE", NULL, $1.node);}
-		| WRITE_ LPAREN STR RPAREN SEMICOLON { concatList($1.node, $2.node);
-											  concatList($2.node, $3.node);
-											  concatList($3.node, $4.node);
-											  concatList($4.node, $5.node);
-											  $$.node = makeNode("WRITE", NULL, $1.node);}
-;
-
-READ : READ_ LPAREN LVAL RPAREN SEMICOLON { concatList($1.node, $2.node);
-										   concatList($2.node, $3.node);
-										   concatList($3.node, $4.node);
-										   concatList($4.node, $5.node);
-										   $$.node = makeNode("READ", NULL, $1.node);};
-ASSN : LVAL ASSIGN EXP SEMICOLON { concatList($1.node, $2.node);
-								   concatList($2.node, $3.node);
-								   concatList($3.node, $4.node);
-								   $$.node = makeNode("ASSN", NULL, $1.node);}
-;
-
-LVAL : ID { $$.node = makeNode("LVAL", NULL, $1.node);}
-;
-
-CNTRL : IF BEXP THEN STMT ELSE STMT { concatList($1.node, $2.node);
-									  concatList($2.node, $3.node);
-									  concatList($3.node, $4.node);
-									  concatList($4.node, $5.node);
-									  concatList($5.node, $6.node);
-									  $$.node = makeNode("CNTRL", NULL, $1.node);}
-		| IF BEXP THEN STMT { concatList($1.node, $2.node);
-							  concatList($2.node, $3.node);
-							  concatList($3.node, $4.node);
-							  $$.node = makeNode("CNTRL", NULL, $1.node);}
-		| WHILE BEXP DO STMT { concatList($1.node, $2.node);
-							   concatList($2.node, $3.node);
-							   concatList($3.node, $4.node);
-							   $$.node = makeNode("CNTRL", NULL, $1.node);}
-;
-
-BEXP : BEXP OR BEXP { concatList($1.node, $2.node);
-					  concatList($2.node, $3.node);
-					  $$.node = makeNode("BEXP", NULL, $1.node);}
-	   | BEXP AND BEXP { concatList($1.node, $2.node);
-						concatList($2.node, $3.node);
-						$$.node = makeNode("BEXP", NULL, $1.node);}
-	   | NOT BEXP { concatList($1.node, $2.node);
-					$$.node = makeNode("BEXP", NULL, $1.node);}
-	   | EXP RELOP EXP { concatList($1.node, $2.node);
-						 concatList($2.node, $3.node);
-						 $$.node = makeNode("BEXP", NULL, $1.node);}
-	   | LPAREN BEXP RPAREN { concatList($1.node, $2.node);
-							  concatList($2.node, $3.node);
-							  $$.node = makeNode("BEXP", NULL, $1.node);}
-;
-
-EXP : EXP ADDOP EXP { concatList($1.node, $2.node);
-					 concatList($2.node, $3.node);
-					 $$.node = makeNode("EXP", NULL, $1.node);}
-	  | EXP MULOP EXP { concatList($1.node, $2.node);
-						concatList($2.node, $3.node);
-						$$.node = makeNode("EXP", NULL, $1.node);}
-	  | LPAREN EXP RPAREN { concatList($1.node, $2.node);
-							concatList($2.node, $3.node);
-							$$.node = makeNode("EXP", NULL, $1.node);}
-	  | ID { $$.node = makeNode("EXP", NULL, $1.node);}
-	  | NUM { $$.node = makeNode("EXP", NULL, $1.node);}
-	  | CALL { $$.node = makeNode("EXP", NULL, $1.node);}
-;
-
-NUM : INTEGERNUM { $$.node = makeNode("NUM", NULL, $1.node); }
-	  | REALNUM { $$.node = makeNode("NUM", NULL, $1.node); }
-;
-
-CALL : ID LPAREN CALL_ARGS RPAREN { concatList($1.node, $2.node);
-								   concatList($2.node, $3.node);
-								   concatList($3.node, $4.node);
-								   $$.node = makeNode("CALL", NULL, $1.node);}
-;
-
-CALL_ARGS : CALL_ARGLIST { $$.node = makeNode("CALL_ARGS", NULL, $1.node);}
-			| /* empty */ { $$.node = makeNode("CALL_ARGS", NULL, makeNode("EPSILON", NULL, NULL));};
-CALL_ARGLIST : CALL_ARGLIST COMMA EXP { concatList($1.node, $2.node);
-										concatList($2.node, $3.node);
-										$$.node = makeNode("CALL_ARGLIST", NULL, $1.node);}
-			   | EXP { $$.node = makeNode("CALL_ARGLIST", NULL, $1.node);}
-;
-
-%%
-
-int main()
+int main(void)
 {
-    return yyparse();
+    int rc;
+#if YYDEBUG
+    yydebug=1;
+#endif
+    rc = yyparse();
+    if (rc == 0) { // Parsed successfully
+        dumpParseTree();
+    }
+    return rc;
 }
+
 
 void yyerror(char const * message)
 {
-    printf("\nSyntax error: '%s' in line number %d\n", yytext, yylineno);
+    printf("Syntax error: '%s' in line number %d\n", yytext, yylineno);
     exit(2);
 }

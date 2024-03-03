@@ -14,10 +14,10 @@
     
     // #define YYSTYPE u
 
-    typedef union {
-        ParserNode* node;
-    } STYPE;
+    // typedef union {
+    //     ParserNode* node;
+    // } STYPE;
 
-    #define YYSTYPE STYPE
+    // #define YYSTYPE STYPE
     
 #endif

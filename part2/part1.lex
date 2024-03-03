@@ -1,6 +1,10 @@
 %{
+#include <iostream>
+#include <string>
+#include <stdio.h>
+#include "part2_helpers.h"
 #include "part2.hpp"
-#include "part2.tab.h"
+#include "part2.tab.hpp"
 
 #define CUT_QUOTES 2
 
@@ -155,7 +159,7 @@ comment     (#.*)
                                 return COMMA;}
 {colon}                     {yylval.node = makeNode(":", NULL, NULL); 
                                 return COLON;}
-{semicolon}                 {yylval.node = makeNode(";", NULL, NULL)
+{semicolon}                 {yylval.node = makeNode(";", NULL, NULL);
                                 return SEMICOLON;}
 {id}                        {yylval.node = makeNode("id", yytext, NULL); 
                                 return ID;}
@@ -194,6 +198,6 @@ string removeQuotes()
 
 void yyerror()
 {
-    printf("\nLexical error: '%s' in line number %d\n", yytext, yylineno);
+    printf("Lexical error: '%s' in line number %d\n", yytext, yylineno);
     exit(1);
 }
