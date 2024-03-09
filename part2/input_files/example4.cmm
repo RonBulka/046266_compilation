@@ -1,0 +1,10 @@
+int main() {
+if (a < 2) then
+if (a < 3) then
+x = 1;
+else
+x = 2;
+}
+
+
+

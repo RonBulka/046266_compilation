@@ -3,7 +3,6 @@
 #include <string>
 #include <stdio.h>
 #include "part2_helpers.h"
-#include "part2.hpp"
 #include "part2.tab.hpp"
 
 #define CUT_QUOTES 2
@@ -29,7 +28,6 @@ if          (if)
 then        (then)
 else        (else)
 return      (return)
-/* reserved    (int|float|void|write|read|optional|while|do|if|then|else|return) */
 id          ([a-zA-Z]([a-zA-Z]|[0-9]|_)*)
 integernum  ([0-9]+)
 realnum     ([0-9]+\.[0-9]+)
@@ -41,7 +39,6 @@ assign      (=)
 and         (&&)
 or          (\|\|)
 not         (!)
-/* signs       (\(|\)|\{|\}|,|:|;) */
 rparen      (\))
 lparen      (\()
 rbrace      (\})
@@ -51,139 +48,70 @@ colon       (:)
 semicolon   (;)
 comment     (#.*)
 
-/* 
-/* {reserved}                  {yylval.c = strdup(yytext); 
-                             return RESERVED;}
 
-{int}                       {yylval.c = strdup(yytext);
-                                return INT;}
-{float}                     {yylval.c = strdup(yytext);
-                                return FLOAT;}
-{void}                      {yylval.c = strdup(yytext);
-                                return VOID;}
-{write}                     {yylval.c = strdup(yytext);
-                                return WRITE_;}
-{read}                      {yylval.c = strdup(yytext);
-                                return READ_;}
-{optional}                  {yylval.c = strdup(yytext);
-                                return OPTIONAL;}
-{while}                     {yylval.c = strdup(yytext);
-                                return WHILE;}
-{do}                        {yylval.c = strdup(yytext);
-                                return DO;}
-{if}                        {yylval.c = strdup(yytext);
-                                return IF;}
-{then}                      {yylval.c = strdup(yytext);
-                                return THEN;}
-{else}                      {yylval.c = strdup(yytext);
-                                return ELSE;}
-{return}                    {yylval.c = strdup(yytext);
-                                return RETURN_;}
-/* {signs}                     {yylval.c = strdup(yytext); 
-                             return SIGNS;} 
-{lparen}                    {yylval.c = strdup(yytext); 
-                                return LPAREN;}
-{rparen}                    {yylval.c = strdup(yytext); 
-                                return RPAREN;}
-{lbrace}                    {yylval.c = strdup(yytext); 
-                                return LBRACE;}
-{rbrace}                    {yylval.c = strdup(yytext); 
-                                return RBRACE;}
-{comma}                     {yylval.c = strdup(yytext); 
-                                return COMMA;}
-{colon}                     {yylval.c = strdup(yytext); 
-                                return COLON;}
-{semicolon}                 {yylval.c = strdup(yytext); 
-                                return SEMICOLON;}
-{id}                        {yylval.c = strdup(yytext); 
-                                return ID;}
-{integernum}                {yylval.i = atoi(yytext); 
-                                return INTEGERNUM;}
-{realnum}                   {yylval.f = atof(yytext); 
-                                return REALNUM;}
-{str}                       {yylval.c = removeQuotes().c_str(); 
-                                return STR;}
-{relop}                     {yylval.c = strdup(yytext); 
-                                return RELOP;}
-{addop}                     {yylval.c = strdup(yytext); 
-                                return ADDOP;}
-{mulop}                     {yylval.c = strdup(yytext); 
-                                return MULOP;}
-{assign}                    {yylval.c = strdup(yytext); 
-                                return ASSIGN;}
-{and}                       {yylval.c = strdup(yytext); 
-                                return AND;}
-{or}                        {yylval.c = strdup(yytext); 
-                                return OR;}
-{not}                       {yylval.c = strdup(yytext); 
-                                return NOT;}
-{whitespace}                ; /* maybe needed later 
-{comment}                   ;
-.                           yyerror();
-*/
 
 %%
-{int}                       {yylval.node = makeNode("int", NULL, NULL);
+{int}                       {yylval.str = NULL;
                                 return INT;}
-{float}                     {yylval.node = makeNode("float", NULL, NULL);
+{float}                     {yylval.str = NULL;
                                 return FLOAT;}
-{void}                      {yylval.node = makeNode("void", NULL, NULL);
+{void}                      {yylval.str = NULL;
                                 return VOID;}
-{write}                     {yylval.node = makeNode("write", NULL, NULL);
+{write}                     {yylval.str = NULL;
                                 return WRITE_;}
-{read}                      {yylval.node = makeNode("read", NULL, NULL);
+{read}                      {yylval.str = NULL;
                                 return READ_;}
-{optional}                  {yylval.node = makeNode("optional", NULL, NULL);
+{optional}                  {yylval.str = NULL;
                                 return OPTIONAL;}
-{while}                     {yylval.node = makeNode("while", NULL, NULL);
+{while}                     {yylval.str = NULL;
                                 return WHILE;}
-{do}                        {yylval.node = makeNode("do", NULL, NULL);
+{do}                        {yylval.str = NULL;
                                 return DO;}
-{if}                        {yylval.node = makeNode("if", NULL, NULL);
+{if}                        {yylval.str = NULL;
                                 return IF;}
-{then}                      {yylval.node = makeNode("then", NULL, NULL);
+{then}                      {yylval.str = NULL;
                                 return THEN;}
-{else}                      {yylval.node = makeNode("else", NULL, NULL);
+{else}                      {yylval.str = NULL;
                                 return ELSE;}
-{return}                    {yylval.node = makeNode("return", NULL, NULL);
+{return}                    {yylval.str = NULL;
                                 return RETURN_;}
-{lparen}                    {yylval.node = makeNode("(", NULL, NULL); 
+{lparen}                    {yylval.str = NULL; 
                                 return LPAREN;}
-{rparen}                    {yylval.node = makeNode(")", NULL, NULL); 
+{rparen}                    {yylval.str = NULL; 
                                 return RPAREN;}
-{lbrace}                    {yylval.node = makeNode("{", NULL, NULL); 
+{lbrace}                    {yylval.str = NULL; 
                                 return LBRACE;}
-{rbrace}                    {yylval.node = makeNode("}", NULL, NULL); 
+{rbrace}                    {yylval.str = NULL; 
                                 return RBRACE;}
-{comma}                     {yylval.node = makeNode(",", NULL, NULL); 
+{comma}                     {yylval.str = NULL; 
                                 return COMMA;}
-{colon}                     {yylval.node = makeNode(":", NULL, NULL); 
+{colon}                     {yylval.str = NULL; 
                                 return COLON;}
-{semicolon}                 {yylval.node = makeNode(";", NULL, NULL);
+{semicolon}                 {yylval.str = NULL;
                                 return SEMICOLON;}
-{id}                        {yylval.node = makeNode("id", yytext, NULL); 
+{id}                        {yylval.str = strdup(yytext); 
                                 return ID;}
-{integernum}                {yylval.node = makeNode("integernum", yytext, NULL); 
+{integernum}                {yylval.str = strdup(yytext); 
                                 return INTEGERNUM;}
-{realnum}                   {yylval.node = makeNode("realnum", yytext, NULL); 
+{realnum}                   {yylval.str = strdup(yytext); 
                                 return REALNUM;}
-{str}                       {yylval.node = makeNode("str", removeQuotes().c_str(), NULL); 
+{str}                       {yylval.str = strdup(removeQuotes().c_str()); 
                                 return STR;}
-{relop}                     {yylval.node = makeNode("relop", yytext, NULL); 
+{relop}                     {yylval.str = strdup(yytext); 
                                 return RELOP;}
-{addop}                     {yylval.node = makeNode("addop", yytext, NULL); 
+{addop}                     {yylval.str = strdup(yytext); 
                                 return ADDOP;}
-{mulop}                     {yylval.node = makeNode("mulop", yytext, NULL); 
+{mulop}                     {yylval.str = strdup(yytext); 
                                 return MULOP;}
-{assign}                    {yylval.node = makeNode("assign", yytext, NULL); 
+{assign}                    {yylval.str = strdup(yytext); 
                                 return ASSIGN;}
-{and}                       {yylval.node = makeNode("and", yytext, NULL); 
+{and}                       {yylval.str = strdup(yytext); 
                                 return AND;}
-{or}                        {yylval.node = makeNode("or", yytext, NULL); 
+{or}                        {yylval.str = strdup(yytext); 
                                 return OR;}
-{not}                       {yylval.node = makeNode("not", yytext, NULL); 
+{not}                       {yylval.str = strdup(yytext); 
                                 return NOT;}
-{whitespace}                ; /* maybe needed later */
+{whitespace}                ;
 {comment}                   ;
 .                           yyerror();
 %%
