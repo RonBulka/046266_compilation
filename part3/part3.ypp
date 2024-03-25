@@ -1,0 +1,582 @@
+%{
+	#include "part3_helpers.hpp"
+
+    using namespace std;
+    
+	extern char *yytext;
+	extern int yylineno;
+	extern int yylex();
+	
+	void yyerror(char const * message);
+	void printSemanticError(string error);
+	void printOperationalError(string error);
+%}
+
+// declare tokens we get from lexer and their types and their associativity
+%token INT FLOAT VOID WRITE_ READ_ OPTIONAL WHILE DO IF RETURN_ COLON SEMICOLON ID INTEGERNUM REALNUM STR 
+
+%right THEN
+%right ELSE
+
+%left COMMA
+%right ASSIGN
+%left OR
+%left AND
+%left RELOP
+%left ADDOP
+%left MULOP
+%right LPAREN RPAREN NOT
+%left LBRACE RBRACE
+
+%%
+// define grammar rules
+// root rule
+PROGRAM : FDEFS { }
+;
+
+FDEFS :   FDEFS FUNC_DEF_API BLK { }
+		| FDEFS FUNC_DEC_API { }
+		| /* empty */ { } %empty
+;
+
+// function declaration rules
+FUNC_DEC_API :   TYPE ID LPAREN RPAREN SEMICOLON { }
+			   | TYPE ID LPAREN FUNC_ARGLIST RPAREN SEMICOLON { }
+			   | TYPE ID LPAREN FUNC_DEC_ARGLIST_OPT RPAREN SEMICOLON { }
+			   | TYPE ID LPAREN FUNC_ARGLIST COMMA FUNC_DEC_ARGLIST_OPT RPAREN SEMICOLON { }
+;
+
+FUNC_DEC_ARGLIST_OPT :   FUNC_DEC_ARGLIST_OPT COMMA DCL_OPT { }
+					   | DCL_OPT { }
+;
+
+DCL_OPT : ID COLON OPTIONAL TYPE { }
+		  | ID COMMA DCL_OPT{ }
+;
+
+// function definition rules
+FUNC_DEF_API : TYPE ID LPAREN RPAREN {}
+			   | TYPE ID LPAREN FUNC_ARGLIST RPAREN {}
+			   | TYPE ID LPAREN FUNC_DEF_ARGLIST_OPT RPAREN {}
+			   | TYPE ID LPAREN FUNC_ARGLIST COMMA FUNC_DEF_ARGLIST_OPT RPAREN {}
+;
+
+FUNC_DEF_ARGLIST_OPT : FUNC_DEF_ARGLIST_OPT COMMA DCL_OPT_VAL {}
+					   | DCL_OPT_VAL{ }
+;
+
+DCL_OPT_VAL : ID ASSIGN NUM COLON OPTIONAL TYPE { }
+			  | ID ASSIGN NUM COMMA DCL_OPT_VAL { }
+;
+
+// function argument list rules
+FUNC_ARGLIST : FUNC_ARGLIST COMMA DCL {}
+			   | DCL { }
+;
+
+// block rules
+BLK : LBRACE STLIST RBRACE { }
+;
+
+// declaration rules
+DCL : ID COLON TYPE { } // variable: int
+	  | ID COMMA DCL { } // var1, var2, var3: int
+;
+
+// type rules
+TYPE :   INT { $$.type = int_t;}
+	   | FLOAT { $$.type = float_t;}
+	   | VOID { $$.type = void_t;}
+;
+
+// statement list rules
+STLIST : STLIST STMT {}
+		 | /* empty */ { } %empty
+;
+
+// statement rules
+STMT : DCL SEMICOLON {}
+	   | ASSN {}
+	   | EXP SEMICOLON {}
+	   | CNTRL {}
+	   | READ {}
+	   | WRITE {}
+	   | RETURN {}
+	   | BLK {}
+;
+
+// return, write, read, assignment rules
+RETURN : RETURN_ EXP SEMICOLON { }
+	   | RETURN_ SEMICOLON { }
+;
+
+WRITE : WRITE_ LPAREN EXP RPAREN SEMICOLON {
+		// check if EXP is void
+		if ($3.type == void_t){
+			printSemanticError("Can't write void");
+		}
+		if ($3.type == int_t){
+			// write integer
+			buffer->emit("PRNTI I" + intToString($3.regNum));
+		}
+		else if ($3.type == float_t){
+			// write float
+			buffer->emit("PRNTF F" + intToString($3.regNum));
+		}
+ 	}
+	| WRITE_ LPAREN STR RPAREN SEMICOLON { 
+		// write string
+		for (int i = 0; i < $3.str.length(); i++){
+			char c = $3.str[i];
+			if ($3.str[i] == '\\'){
+				if ($3.str[i+1] == 'n'){
+					c = '\n';
+					i++;
+				}
+				else if ($3.str[i+1] == 't'){
+					c = '\t';
+					i++;
+				}
+				else if ($3.str[i+1] == 'r'){
+					c = '\r';
+					i++;
+				}
+				else if ($3.str[i+1] == '"'){
+					c = '\"';
+					i++;
+				}
+			}
+			int ascii = (int)c;
+			buffer->emit("PRNTC " + intToString(ascii));
+		}
+	}
+;
+/* example
+ADD2I I3 I1 0 // I3 = I1 + 0 (calculate address of I1, done by LVAL)
+READI I4 	  // read integer f
+STORI I4 I3 0
+*/
+READ : READ_ LPAREN LVAL RPAREN SEMICOLON { 
+		// check if LVAL is void
+		if ($3.type == void_t){
+			printSemanticError("Can't read void");
+		}
+		if ($3.type == int_t){
+			int tempReg = currentScopeRegsNumInt++;
+			// read integer
+			buffer->emit("READI I" + intToString(tempReg));
+			// store integer
+			buffer->emit("STORI I" + intToString(tempReg) + " I" + intToString($3.regNum) + " 0");
+		}
+		else if ($3.type == float_t){
+			int tempRegConvert = currentScopeRegsNumFloat++;
+			int tempRegRead = currentScopeRegsNumFloat++;
+			// read float
+			buffer->emit("READF F" + intToString(tempReg));
+			// convert LVAL address to float
+			buffer->emit("CITOF F" + intToString(tempRegConvert) + " I" + intToString($3.regNum));
+			// store float
+			buffer->emit("STORF F" + intToString(tempReg) + " F" + intToString(tempRegConvert) + " 0");
+		}
+	}
+
+;
+// assignment rules
+/* example
+ADD2I I3 I1 0 // I3 = I1 + 0 (calculate address of ID, done by LVAL)
+STORI I4 I3 0
+*/
+ASSN : LVAL ASSIGN EXP SEMICOLON { 
+		// check if types are the same
+		if ($1.type != $3.type){
+			printSemanticError("Type mismatch in assignment");
+		}
+		// check if LVAL is void
+		if ($1.type == void_t){
+			printSemanticError("Can't assign void");
+		}
+		if ($1.type == int_t){
+			// store integer
+			buffer->emit("STORI I" + intToString($3.regNum) + " I" + intToString($1.regNum) + " 0");
+		}
+		else if ($1.type == float_t){
+			int tempReg = currentScopeRegsNumFloat++;
+			// convert LVAL address to float
+			buffer->emit("CITOF F" + intToString(tempReg) + " I" + intToString($1.regNum));
+			// store float
+			buffer->emit("STORF F" + intToString($3.regNum) + " F" + intToString(tempReg) + " 0");
+		}
+	}
+;
+
+LVAL : ID { 
+		// check if the variable is declared
+		if (symbolTable->find($1.str) == symbolTable->end()){
+			// not found in symbol table
+			printSemanticError("Variable '" + $1.str + "' not declared");
+		}
+		int depth = symbolTable[$1.str].depth;
+		$$.type = symbolTable[$1.str].type[depth];
+		$$.offset = symbolTable[$1.str].offset[depth];
+		if ($$.type == void_t) {
+			printSemanticError("Variable '" + $1.str + "' is void");
+		}
+		$$.regNum = currentScopeRegsNumInt++;
+		// calculate address of ID
+		buffer->emit("ADD2I I" + intToString($$.regNum) + " I1 " + intToString($$.offset));
+	}
+;
+
+// control flow rules
+CNTRL : IF BEXP THEN M STMT ELSE N M STMT { 
+		// if BEXP is true then execute STMT
+		buffer->backpatch($2.trueList, $4.quad);
+		// if BEXP is false then execute ELSE STMT
+		buffer->backpatch($2.falseList, $8.quad);
+		// if STMT is done, go to nextlist of CNTRL (including falling out)
+		$$.nextList = merge<int>($5.nextList, $7.nextList);
+		// also go to nextlist of CNTRL if ELSE STMT is done
+		$$.nextList = merge<int>($$.nextList, $9.nextList);
+		// clear merged lists
+		$2.falseList.clear();
+		$7.nextList.clear();
+		$9.nextList.clear();
+	}
+	| IF BEXP THEN M STMT { 
+		// if BEXP is true then execute STMT
+		buffer->backpatch($2.trueList, $4.quad);
+		// if BEXP is false or STMT is done, go to nextlist of CNTRL
+		$$.nextList = merge<int>($2.falseList, $5.nextList);
+		// clear merged lists
+		$2.falseList.clear();
+		$5.nextList.clear();
+
+	}
+	| WHILE M BEXP DO M STMT {
+		// if BEXP is true then execute STMT
+		buffer->backpatch($3.trueList, $5.quad);
+		// when STMT is done, go back to BEXP
+		buffer->backpatch($6.nextList, $2.quad);
+		// if BEXP is false, go out of the loop
+		$$.nextList = $3.falseList;
+		// catch falling out of loop
+		buffer->emit("UJUMP " + intToString($2.quad));
+
+	}
+;
+
+// boolean and expression rules
+BEXP : BEXP OR M BEXP { 
+		buffer->backpatch($1.falseList, $3.quad);
+		$$.falseList = $4.falseList;
+		$$.trueList = merge<int>($1.trueList, $4.trueList);
+		$1.trueList.clear();
+		$4.trueList.clear();
+	}
+	| BEXP AND M BEXP { 
+		buffer->backpatch($1.trueList, $3.quad);
+		$$.falseList = merge<int>($1.falseList, $4.falseList);
+		$$.trueList = $4.trueList;
+		$1.falseList.clear();
+		$4.falseList.clear();
+	}
+	| NOT BEXP { 
+		$$.trueList = $2.falseList;
+		$$.falseList = $2.trueList;
+	}
+	| EXP RELOP EXP { 
+		if ($1.type == void_t || $3.type == void_t){
+			printSemanticError("Can't compare void");
+		}
+		else if ($1.type != $3.type){
+			printSemanticError("Type mismatch in comparison");
+		}
+		$$.type = int_t;
+		$$.regNum = currentScopeRegsNumInt++;
+		if ($1.type == int_t){
+			// Set BREQZ / BNEQZ for backpatching
+			$$.falseList.push_back(buffer->nextquad() + 1);
+			// Set UJUMP for backpatching
+			$$.trueList.push_back(buffer->nextquad() + 2);
+			if ($2.str == "==") {
+				// SEQUI = set equal
+				buffer->emit("SEQUI I" + intToString($$.regNum) + " I" + intToString($1.regNum) 
+																+ " I" + intToString($3.regNum));
+				buffer->emit("BREQZ I" + intToString($$.regNum) + " "); // falseList, jump if reg==0
+			}
+			else if ($2.str == "<>") {
+				// SNEQI = set not equal
+				buffer->emit("SNEQI I" + intToString($$.regNum) + " I" + intToString($1.regNum) 
+																+ " I" + intToString($3.regNum));
+				buffer->emit("BREQZ I" + intToString($$.regNum) + " "); // falseList, jump if reg==0
+			}
+			else if ($2.str == "<") {
+				// SLETI = set less than
+				buffer->emit("SLETI I" + intToString($$.regNum) + " I" + intToString($1.regNum) 
+																+ " I" + intToString($3.regNum));
+				buffer->emit("BREQZ I" + intToString($$.regNum) + " "); // falseList, jump if reg==0
+			}
+			else if ($2.str == "<=") {
+				// if $1 <= $3, then $3 > $1 (SGRTI = set greater than)
+				buffer->emit("SGRTI I" + intToString($$.regNum) + " I" + intToString($1.regNum) 
+																+ " I" + intToString($3.regNum));
+				buffer->emit("BNEQZ I" + intToString($$.regNum) + " "); // falseList, jump if reg!=0
+			}
+			else if ($2.str == ">") {
+				// SGRTI = set greater than
+				buffer->emit("SGRTI I" + intToString($$.regNum) + " I" + intToString($1.regNum) 
+																+ " I" + intToString($3.regNum));
+				buffer->emit("BREQZ I" + intToString($$.regNum) + " "); // falseList, jump if reg==0
+			}
+			else if ($2.str == ">=") {
+				// if $1 >= $3, then $3 < $1 (SLETI = set less than)
+				buffer->emit("SLETI I" + intToString($$.regNum) + " I" + intToString($1.regNum) 
+																+ " I" + intToString($3.regNum));
+				buffer->emit("BNEQZ I" + intToString($$.regNum) + " "); // falseList, jump if reg!=0
+			}
+		}
+		else if ($1.type == float_t) {
+			// Set BREQZ / BNEQZ for backpatching
+			$$.falseList.push_back(buffer->nextquad() + 2);
+			// Set UJUMP for backpatching
+			$$.trueList.push_back(buffer->nextquad() + 3);
+			int tempReg = currectScopeRegsNumFloat++;
+			if ($2.str == "==") {
+				// SEQUF = set equal
+				buffer->emit("SEQUF F" + intToString(tempReg) + " F" + intToString($1.regNum) 
+															  + " F" + intToString($3.regNum));
+				buffer->emit("CFTOI I" + intToString($$.regNum) + " F" + intToString(tempReg));
+				buffer->emit("BREQZ I" + intToString($$.regNum) + " "); // falseList, jump if reg==0
+			}
+			else if ($2.str == "<>") {
+				// SNEQF = set not equal
+				buffer->emit("SNEQF F" + intToString(tempReg) + " F" + intToString($1.regNum) 
+															  + " F" + intToString($3.regNum));
+				buffer->emit("CFTOI I" + intToString($$.regNum) + " F" + intToString(tempReg));
+				buffer->emit("BREQZ I" + intToString($$.regNum) + " "); // falseList, jump if reg==0
+			}
+			else if ($2.str == "<") {
+				// SLETF = set less than
+				buffer->emit("SLETF F" + intToString(tempReg) + " F" + intToString($1.regNum) 
+															  + " F" + intToString($3.regNum));
+				buffer->emit("CFTOI I" + intToString($$.regNum) + " F" + intToString(tempReg));
+				buffer->emit("BREQZ I" + intToString($$.regNum) + " "); // falseList, jump if reg==0
+			}
+			else if ($2.str == "<=") {
+				// if $1 <= $3, then $3 > $1 (SGRTF = set greater than)
+				buffer->emit("SGRTF F" + intToString(tempReg) + " F" + intToString($1.regNum) 
+																+ " F" + intToString($3.regNum));
+				buffer->emit("CFTOI I" + intToString($$.regNum) + " F" + intToString(tempReg));
+				buffer->emit("BNEQZ I" + intToString($$.regNum) + " "); // falseList, jump if reg!=0
+			}
+			else if ($2.str == ">") {
+				// SGRTF = set greater than
+				buffer->emit("SGRTF F" + intToString(tempReg) + " F" + intToString($1.regNum) 
+																+ " F" + intToString($3.regNum));
+				buffer->emit("CFTOI I" + intToString($$.regNum) + " F" + intToString(tempReg));
+				buffer->emit("BREQZ I" + intToString($$.regNum) + " "); // falseList, jump if reg==0
+			}
+			else if ($2.str == ">=") {
+				// if $1 >= $3, then $3 < $1 (SLETF = set less than)
+				buffer->emit("SLETF F" + intToString(tempReg) + " F" + intToString($1.regNum) 
+																+ " F" + intToString($3.regNum));
+				buffer->emit("CFTOI I" + intToString($$.regNum) + " F" + intToString(tempReg));
+				buffer->emit("BNEQZ I" + intToString($$.regNum) + " "); // falseList, jump if reg!=0
+			}
+		}
+		buffer->emit("UJUMP "); // trueList
+
+	}
+	| LPAREN BEXP RPAREN { 
+		$$.trueList = $2.trueList;
+		$$.falseList = $2.falseList;
+	}
+;
+
+// expression rules
+EXP : EXP ADDOP EXP { 
+		if ($1.type == void_t || $3.type == void_t){
+			printSemanticError("Can't add void");
+		}
+		else if ($1.type != $3.type){
+			printSemanticError("Type mismatch in addition");
+		}
+		$$.type = $1.type;
+		if ($1.type == int_t){
+			$$.regNum = currentScopeRegsNumInt++;
+			if ($2.str == "+") {
+				buffer->emit("ADD2I I" + intToString($$.regNum) + " I" + intToString($1.regNum) 
+																+ " I" + intToString($3.regNum));
+			}
+			else { // $2.str == "-"
+				buffer->emit("SUBTI I" + intToString($$.regNum) + " I" + intToString($1.regNum) 
+																+ " I" + intToString($3.regNum));
+			}
+		}
+		else if ($1.type == float_t){
+			$$.regNum = currentScopeRegsNumFloat++;
+			if ($2.str == "+") {
+				buffer->emit("ADD2F F" + intToString($$.regNum) + " F" + intToString($1.regNum) 
+																+ " F" + intToString($3.regNum));
+			}
+			else { // $2.str == "-"
+				buffer->emit("SUBTF F" + intToString($$.regNum) + " F" + intToString($1.regNum) 
+																+ " F" + intToString($3.regNum));
+			}
+		}
+	}
+	| EXP MULOP EXP {
+		if ($1.type == void_t || $3.type == void_t){
+			printSemanticError("Can't multiply void");
+		}
+		else if ($1.type != $3.type){
+			printSemanticError("Type mismatch in multiplication");
+		}
+		$$.type = $1.type;
+		if ($1.type == int_t){
+			$$.regNum = currentScopeRegsNumInt++;
+			if ($2.str == "*") {
+				buffer->emit("MULTI I" + intToString($$.regNum) + " I" + intToString($1.regNum) 
+																+ " I" + intToString($3.regNum));
+			}
+			else { // $2.str == "/"
+				buffer->emit("DIVDI I" + intToString($$.regNum) + " I" + intToString($1.regNum) 
+																+ " I" + intToString($3.regNum));
+			}
+		}
+		else if ($1.type == float_t){
+			$$.regNum = currentScopeRegsNumFloat++;
+			if ($2.str == "*") {
+				buffer->emit("MULTF F" + intToString($$.regNum) + " F" + intToString($1.regNum) 
+																+ " F" + intToString($3.regNum));
+			}
+			else { // $2.str == "/"
+				buffer->emit("DIVDF F" + intToString($$.regNum) + " F" + intToString($1.regNum) 
+																+ " F" + intToString($3.regNum));
+			}
+			
+		}
+	}
+	| LPAREN EXP RPAREN { 
+		$$ = $2;
+	}
+	| LPAREN TYPE RPAREN EXP { 
+		// check if the types arent void
+		if (($2.type == void_t) || ($4.type == void_t)){
+			printSemanticError("Can't cast to void or from void");
+		}
+
+		if ($2.type == $4.type){
+			$$ = $4;
+		}
+		$$.type = $2.type;
+		$$.offset = $4.offset;
+		else if ($2.type == int_t && $4.type == float_t){
+			// convert float to int
+			$$.regNum = currentScopeRegsNumInt++;
+			buffer->emit("CFTOI I" + intToString($$.regNum) + " F" + intToString($4.regNum));
+			
+		}
+		else if ($2.type == float_t && $4.type == int_t){
+			// convert int to float
+			$$.regNum = currentScopeRegsNumFloat++;
+			buffer->emit("CITOF F" + intToString($$.regNum) + " I" + intToString($4.regNum));
+		}
+	}
+	| ID { 
+		// check if in symbol table with $1
+	  	if (symbolTable->find($1.str) == symbolTable->end()){
+			// not found in symbol table
+			printSemanticError("Variable " + $1.str + " not declared");
+		}
+		string name = $1.str;
+		int depth = symbolTable[name].depth;
+		$$.type = symbolTable[name].type[depth];
+		if ($$.type == int_t){
+			$$.regNum = currentScopeRegsNumInt++;
+			$$.offset = symbolTable[name].offset[depth];
+			buffer->emit("LOADI I" + intToString($$.regNum) + " I1 " + intToString($$.offset));
+		}
+		else if ($$.type == float_t){
+			$$.regNum = currentScopeRegsNumFloat++;
+			$$.offset = symbolTable[name].offset[depth];
+			// load I1 into F1
+			buffer->emit("CITOF F1 I1");
+			// load float
+			buffer->emit("LOADF F" + intToString($$.regNum) + " F1 " + intToString($$.offset));
+		}
+	}
+	| NUM { 
+		$$ = $1;
+	}
+	| CALL {
+		; // ************************************************
+	}
+;
+
+// number rules
+NUM : INTEGERNUM { 
+		$$.type = int_t;
+		$$.regNum = currentScopeRegsNumInt++;
+		$$.value = $1.str;
+		buffer->emit("COPYI I" + intToString($$.regNum) + " " + $1.str);
+	}
+	| REALNUM { 
+		$$.type = float_t;
+		$$.regNum = currentScopeRegsNumFloat++;
+		$$.value = $1.str;
+		buffer->emit("COPYF F" + intToString($$.regNum) + " " + $1.str);
+	}
+;
+
+// function call rules
+CALL : ID LPAREN CALL_ARGS RPAREN {
+		; // ************************************************
+	}
+;
+
+// function call argument rules
+CALL_ARGS : CALL_ARGLIST {
+		; // ************************************************
+	}
+	| /* empty */ {
+		; // ************************************************
+	} %empty
+;
+
+// function call argument list rules
+CALL_ARGLIST : CALL_ARGLIST COMMA EXP {
+		; // ************************************************
+	}
+	| EXP {
+		; // ************************************************
+	}
+;
+
+M : /* empty */ { 
+		$$.quad = buffer->nextquad() 
+	} %empty
+;
+
+N : /* empty */ { 	
+		$$.nextList.push_back(buffer->nextquad());
+		buffer->emit("UJUMP ");
+	} %empty
+;
+%%
+
+void yyerror(char const * message)
+{
+    printf("Syntax error: '%s' in line number %d\n", yytext, yylineno);
+    exit(SYNTAX_ERROR);
+}
+
+void printSemanticError(string error){
+	cout << "Semantic error: " << error << " in line number " << yylineno << endl;
+	exit(SEMANTIC_ERROR);
+}
+
+void printOperationalError(string error){
+	cout << "Operational error: " << error << endl;
+	exit(OPERATIONAL_ERROR);
+}

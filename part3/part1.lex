@@ -1,9 +1,6 @@
 %{
-#include <iostream>
-#include <string>
-#include <stdio.h>
-#include "part2_helpers.h"
-#include "part2.tab.hpp"
+#include "part3_helpers.hpp"
+#include "part3.tab.hpp"
 
 #define CUT_QUOTES 2
 
@@ -127,5 +124,5 @@ string removeQuotes()
 void yyerror()
 {
     printf("Lexical error: '%s' in line number %d\n", yytext, yylineno);
-    exit(1);
+    exit(LEXICAL_ERROR);
 }

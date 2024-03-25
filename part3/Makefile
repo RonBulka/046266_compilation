@@ -1,24 +1,24 @@
 # Makefile for part2
-all: part2
+all: rx-cc
 
-part2: lex.yy.o part2.tab.o part2_helpers.o
+rx-cc: lex.yy.o part3.tab.o part3_helpers.o
 	g++ -o $@ $^
 
-lex.yy.o: lex.yy.c part2.tab.hpp
+part3_helpers.o: part3_helpers.c part3_helpers.hpp
+	g++ -c -o $@ part3_helpers.cpp
+
+part3.tab.o: part3.tab.cpp part3.tab.hpp
+	g++ -c -o $@ part3.tab.cpp
+
+lex.yy.o: lex.yy.c part3.tab.hpp
 	g++ -c -o $@ lex.yy.c
 
-lex.yy.c: part1.lex
+lex.yy.c: part1.lex part3.tab.hpp part3_helpers.hpp
 	flex part1.lex
 
-part2.tab.o: part2.tab.cpp part2.tab.hpp
-	g++ -c -o $@ part2.tab.cpp
-
-part2.tab.cpp part2.tab.hpp: part2.ypp part2_helpers.h
-	bison -d part2.ypp
-
-part2_helpers.o: part2_helpers.c part2_helpers.h
-	g++ -c -o $@ part2_helpers.c
+part3.tab.cpp part3.tab.hpp: part2.ypp part3_helpers.hpp
+	bison -d part3.ypp
 
 .PHONY: clean
 clean:
-	rm -f part2 *.o *.tab.* lex.yy.c
+	rm -f rx-cc *.o *.tab.* lex.yy.c
