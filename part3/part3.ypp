@@ -75,30 +75,67 @@ FUNC_ARGLIST : FUNC_ARGLIST COMMA DCL {}
 ;
 
 // block rules
-BLK : LBRACE STLIST RBRACE { }
+BLK : LBRACE OPEN_SCOPE STLIST M CLOSE_SCOPE RBRACE { }
+;
+
+OPEN_SCOPE : { 
+		// open scope
+		currentBlockDepth++;
+	}
+;
+
+CLOSE_SCOPE : { 
+		// remove variables from symbol table in current scope
+		for (auto it = symbolTable->begin(); it != symbolTable->end(); it++){
+			if (it->second.depth == currentBlockDepth){
+				it->second.type.erase(currentBlockDepth);
+				it->second.offset.erase(currentBlockDepth);
+				it->second.depth--;
+			}
+		}
+		// close scope
+		currentBlockDepth--;
+	}
 ;
 
 // declaration rules
-DCL : ID COLON TYPE { } // variable: int
-	  | ID COMMA DCL { } // var1, var2, var3: int
+DCL : ID COLON TYPE { 
+
+	} // variable: int
+	| ID COMMA DCL { 
+		
+	} // var1, var2, var3: int
 ;
 
 // type rules
-TYPE :   INT { $$.type = int_t;}
-	   | FLOAT { $$.type = float_t;}
-	   | VOID { $$.type = void_t;}
+TYPE : INT { 
+		$$.type = int_t;
+	}
+	| FLOAT { 
+		$$.type = float_t;
+	}
+	| VOID { 
+		$$.type = void_t;
+	}
 ;
 
 // statement list rules
 STLIST : STLIST STMT {}
-		 | /* empty */ { } %empty
+		| /* empty */ {} %empty
 ;
 
 // statement rules
-STMT : DCL SEMICOLON {}
+STMT : 	DCL SEMICOLON {}
 	   | ASSN {}
-	   | EXP SEMICOLON {}
-	   | CNTRL {}
+	   | EXP SEMICOLON {
+			// check if EXP is void
+			if ($1.type == void_t){
+				printSemanticError("expression can't be of type void");
+			}
+	   }
+	   | CNTRL M { // maybe not the right place to backpatch
+			buffer->backpatch($2.nextList, $2.quad);
+	   }
 	   | READ {}
 	   | WRITE {}
 	   | RETURN {}
@@ -106,8 +143,35 @@ STMT : DCL SEMICOLON {}
 ;
 
 // return, write, read, assignment rules
-RETURN : RETURN_ EXP SEMICOLON { }
-	   | RETURN_ SEMICOLON { }
+RETURN : RETURN_ EXP SEMICOLON { 
+	if (currentReturnType != $2.type){
+		printSemanticError("Return type mismatch");
+	}
+	else if (currentReturnType == void_t){
+		printSemanticError("Can't return void");
+	}
+	$$.type = $2.type;
+	$$.regNum = $2.regNum;
+	// int returnValSize = 4;
+	if ($2.type == int_t){
+		// store integer
+		buffer->emit("STORI I" + intToString($$.regNum) + " I1 -4");
+	}
+	else if ($2.type == float_t){
+		// store float
+		// convert I1 address to float
+		buffer->emit("CITOF F1 I1");
+		buffer->emit("STORF F" + intToString($2.regNum) + " F1 -4");
+	}
+	buffer->emit("RETRN");
+}
+	| RETURN_ SEMICOLON { 
+		if (currentReturnType != void_t){
+			printSemanticError("Return type mismatch");
+		}
+		$$.type = void_t;
+		buffer->emit("RETRN");
+	}
 ;
 
 WRITE : WRITE_ LPAREN EXP RPAREN SEMICOLON {

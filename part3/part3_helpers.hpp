@@ -44,10 +44,10 @@ typedef struct {
     int quad;
     // Number of the register the token is assigned
     int regNum;
-    // List of parameters' types in function's defenition
+    // List of parameters types in function's definition
     vector<Type> paramTypes;
-    // List of parameters registers' numbers in function's defenition
-    vector<int>  paramRegs; 
+    // List of parameters registers numbers in function's definition
+    vector<int> paramRegs; 
 } yystype;
 
 // Definition of Symbol struct
