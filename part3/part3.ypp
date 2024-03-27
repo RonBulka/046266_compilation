@@ -31,47 +31,146 @@
 %%
 // define grammar rules
 // root rule
-PROGRAM : FDEFS { }
+PROGRAM : FDEFS { 
+		// after parsing the whole program, we need to fill in calls to functions we have defined
+		// fill in the calls to functions
+		for (auto it = functionTable.begin(); it != functionTable.end(); it++){
+			int impAddress = it->second.address;
+			buffer->backpatch(it->second.callingAddresses, impAddress);
+		}
+	}
 ;
 
-FDEFS :   FDEFS FUNC_DEF_API BLK { }
-		| FDEFS FUNC_DEC_API { }
-		| /* empty */ { } %empty
+FDEFS :   FDEFS FUNC_DEF_API M BLK {
+		// function entry in function table is already done in FUNC_DEF_API
+		// check if the function is already defined
+		if (functionTable[$2.str].defined){
+			printSemanticError("Function '" + $2.str + "' already defined");
+		}
+		else { // if the function is not defined, 
+			// set the function as defined
+			functionTable[$2.str].defined = true;
+			// set the function address
+			functionTable[$2.str].address = $3.quad;
+		}
+		// catch void return
+		buffer->emit("RETRN");
+		// clear symbol table
+		symbolTable.clear();
+		$2.paramTypes.clear();
+		// clear current scope registers
+		currentScopeRegsNumInt = 3;
+		currentScopeRegsNumFloat = 3;
+		// clear current scope offset
+		currentScopeOffset = 0;
+	}
+	| FDEFS FUNC_DEC_API {
+		// $2 is a function declaration, its already inserted in the function table by FUNC_DEC_API
+		// check if the function is not defined
+		if (!functionTable[$2.str].defined){
+			functionTable[$2.str].address = -1;
+		}
+		// clear symbol table
+		symbolTable.clear();
+	}
+	| /* empty */ { } %empty
 ;
 
-// function declaration rules
-FUNC_DEC_API :   TYPE ID LPAREN RPAREN SEMICOLON { }
-			   | TYPE ID LPAREN FUNC_ARGLIST RPAREN SEMICOLON { }
-			   | TYPE ID LPAREN FUNC_DEC_ARGLIST_OPT RPAREN SEMICOLON { }
-			   | TYPE ID LPAREN FUNC_ARGLIST COMMA FUNC_DEC_ARGLIST_OPT RPAREN SEMICOLON { }
+// function declaration rules, create new function instance and add it to function table
+FUNC_DEC_API :   TYPE ID LPAREN RPAREN SEMICOLON {
+		
+ 	}
+	| TYPE ID LPAREN FUNC_ARGLIST RPAREN SEMICOLON { 
+
+	}
+	| TYPE ID LPAREN FUNC_DEC_ARGLIST_OPT RPAREN SEMICOLON { }
+	| TYPE ID LPAREN FUNC_ARGLIST COMMA FUNC_DEC_ARGLIST_OPT RPAREN SEMICOLON { }
 ;
 
-FUNC_DEC_ARGLIST_OPT :   FUNC_DEC_ARGLIST_OPT COMMA DCL_OPT { }
-					   | DCL_OPT { }
+FUNC_DEC_ARGLIST_OPT :   FUNC_DEC_ARGLIST_OPT COMMA DCL_OPT { 
+
+	}
+	| DCL_OPT { 
+
+	}
 ;
 
-DCL_OPT : ID COLON OPTIONAL TYPE { }
-		  | ID COMMA DCL_OPT{ }
+DCL_OPT : ID COLON OPTIONAL TYPE { 
+
+	}
+	| ID COMMA DCL_OPT{ 
+
+	}
 ;
 
 // function definition rules
-FUNC_DEF_API : TYPE ID LPAREN RPAREN {}
-			   | TYPE ID LPAREN FUNC_ARGLIST RPAREN {}
-			   | TYPE ID LPAREN FUNC_DEF_ARGLIST_OPT RPAREN {}
-			   | TYPE ID LPAREN FUNC_ARGLIST COMMA FUNC_DEF_ARGLIST_OPT RPAREN {}
+FUNC_DEF_API : TYPE ID LPAREN RPAREN {
+		// might need to change this
+		if (functionTable->find($2.str) != functionTable->end()){
+			// found in function table
+			// if not defined, but declared check if the return type and parameters match
+			if (!functionTable[$2.str].defined){
+				// check if return type matches
+				if (functionTable[$2.str].returnType != $2.type){
+					printSemanticError("Function '" + $2.str + "' already declared with different return type");
+				}
+				// check if parameters match
+				else if (functionTable[$2.str].paramTypes != $2.paramTypes){
+					printSemanticError("Function '" + $2.str + "' already declared with different parameters");
+				}
+				// check if the number of optional arguments match
+				else if (functionTable[$2.str].maxOptionalArgs != $2.maxOptionalArgs){
+					printSemanticError("Function '" + $2.str + "' already declared with different number of optional arguments");
+				}
+			}
+			// check if return type matches
+			if (functionTable[$2.str].returnType != $2.type){
+				printSemanticError("Function '" + $2.str + "' already declared with different return type");
+			}
+			// check if parameters match
+			else if (functionTable[$2.str].paramTypes != $2.paramTypes){
+				printSemanticError("Function '" + $2.str + "' already declared with different parameters");
+			}
+			// if the function is defined, 
+			else{
+				
+			}
+		}
+	}
+	| TYPE ID LPAREN FUNC_ARGLIST RPAREN {
+
+	}
+	| TYPE ID LPAREN FUNC_DEF_ARGLIST_OPT RPAREN {
+
+	}
+	| TYPE ID LPAREN FUNC_ARGLIST COMMA FUNC_DEF_ARGLIST_OPT RPAREN {
+
+	}
 ;
 
-FUNC_DEF_ARGLIST_OPT : FUNC_DEF_ARGLIST_OPT COMMA DCL_OPT_VAL {}
-					   | DCL_OPT_VAL{ }
+FUNC_DEF_ARGLIST_OPT : FUNC_DEF_ARGLIST_OPT COMMA DCL_OPT_VAL {
+
+	}
+	| DCL_OPT_VAL{ 
+
+	}
 ;
 
-DCL_OPT_VAL : ID ASSIGN NUM COLON OPTIONAL TYPE { }
-			  | ID ASSIGN NUM COMMA DCL_OPT_VAL { }
+DCL_OPT_VAL : ID ASSIGN NUM COLON OPTIONAL TYPE { 
+		// cant declare void
+	}
+	| ID ASSIGN NUM COMMA DCL_OPT_VAL { 
+		// cant declare void
+	}
 ;
 
-// function argument list rules
-FUNC_ARGLIST : FUNC_ARGLIST COMMA DCL {}
-			   | DCL { }
+// function argument list rules, insertion to symbol table made in DCL
+FUNC_ARGLIST : FUNC_ARGLIST COMMA DCL {
+		// insert parameters to currentParamInsertionOrder ()
+	}
+	| DCL { 
+		
+	}
 ;
 
 // block rules
@@ -100,9 +199,11 @@ CLOSE_SCOPE : {
 
 // declaration rules
 DCL : ID COLON TYPE { 
+		// cant declare void
 
 	} // variable: int
 	| ID COMMA DCL { 
+		// cant declare void
 		
 	} // var1, var2, var3: int
 ;
@@ -120,21 +221,18 @@ TYPE : INT {
 ;
 
 // statement list rules
-STLIST : STLIST STMT {}
-		| /* empty */ {} %empty
+STLIST : STLIST STMT M {
+		buffer->backpatch($2.nextList, $3.quad);
+	}
+	| /* empty */ {} %empty
 ;
 
 // statement rules
 STMT : 	DCL SEMICOLON {}
 	   | ASSN {}
-	   | EXP SEMICOLON {
-			// check if EXP is void
-			if ($1.type == void_t){
-				printSemanticError("expression can't be of type void");
-			}
-	   }
-	   | CNTRL M { // maybe not the right place to backpatch
-			buffer->backpatch($2.nextList, $2.quad);
+	   | EXP SEMICOLON {}
+	   | CNTRL { 
+			$$.nextList = $2.nextList;
 	   }
 	   | READ {}
 	   | WRITE {}
@@ -526,25 +624,30 @@ EXP : EXP ADDOP EXP {
 	}
 	| LPAREN TYPE RPAREN EXP { 
 		// check if the types arent void
-		if (($2.type == void_t) || ($4.type == void_t)){
-			printSemanticError("Can't cast to void or from void");
+		if (($4.type == void_t) && ($2.type != void_t)){
+			printSemanticError("Can't cast from void to non-void");
 		}
 
 		if ($2.type == $4.type){
 			$$ = $4;
 		}
-		$$.type = $2.type;
-		$$.offset = $4.offset;
 		else if ($2.type == int_t && $4.type == float_t){
+			$$.type = $2.type;
+			$$.offset = $4.offset;
 			// convert float to int
 			$$.regNum = currentScopeRegsNumInt++;
 			buffer->emit("CFTOI I" + intToString($$.regNum) + " F" + intToString($4.regNum));
 			
 		}
 		else if ($2.type == float_t && $4.type == int_t){
+			$$.type = $2.type;
+			$$.offset = $4.offset;
 			// convert int to float
 			$$.regNum = currentScopeRegsNumFloat++;
 			buffer->emit("CITOF F" + intToString($$.regNum) + " I" + intToString($4.regNum));
+		}
+		else { // $2.type == void_t
+			$$.type = $2.type;
 		}
 	}
 	| ID { 
@@ -574,7 +677,11 @@ EXP : EXP ADDOP EXP {
 		$$ = $1;
 	}
 	| CALL {
-		; // ************************************************
+		// the result of the function call is in $1
+		$$.type = $1.type;
+		if ($$.type != void_t){
+			$$.regNum = $1.regNum;
+		}
 	}
 ;
 
@@ -595,25 +702,165 @@ NUM : INTEGERNUM {
 
 // function call rules
 CALL : ID LPAREN CALL_ARGS RPAREN {
-		; // ************************************************
+		string functionName = $1.str;
+		// check if the function is declared
+		if (functionTable->find(functionName) == functionTable->end()){
+			// not found in symbol table
+			printSemanticError("Function '" + functionName + "' not declared");
+		}
+		// check if the number of arguments match (including optional arguments)
+		int totalArgs = functionTable[functionName].paramTypes.size(); // total number of arguments including optional
+		int inputedArgs = $3.argTypes.size(); // number of inputed arguments
+		int maxOptionalArgs = functionTable[functionName].maxOptionalArgs;
+		if ((inputedArgs < totalArgs - maxOptionalArgs) || (inputedArgs > totalArgs)){
+			printSemanticError("Number of arguments in function call of '" + functionName + "' doesn't match");
+		}
+
+		// check if the types of arguments match
+		for (int i = 0; i < inputedArgs; i++){
+			if ($3.argTypes[i] != functionTable[functionName].paramTypes[i]){
+				printSemanticError("Type mismatch in function call of '" + functionName + "'");
+			}
+		}
+		
+		// we only use types of 4 bytes (int, float), everything is alligned to 4 bytes
+		// save all used registers to stack
+		int offset = 0;
+		// calculate num of optional arguments passed
+		int numOptionalArgsPassed = inputedArgs - (totalArgs - maxOptionalArgs);
+		int tempReg = currentScopeRegsNumInt++;
+		buffer->emit("COPYI I" + intToString(tempReg) + " " + intToString(numOptionalArgsPassed));
+		// set F2 to be the same as I2
+		buffer->emit("CITOF F2 I2");
+		for (int i = 0; i < currentScopeRegsNumInt; i++){
+			buffer->emit("STORI I" + intToString(i) + " I2 " + intToString(offset));
+			offset += 4;
+		}
+		/*********************************************************************************/
+		// need to figure out the thing with float registers
+		offset += 8; // 4 bytes for return value and 4 bytes for num of optional arguments passed
+
+		int paramsCurrentOffset = -8;
+		int paramCount = $3.paramRegs.size();
+		vector<Type> paramTypes = $3.paramTypes;
+		vector<int> paramRegs = $3.paramRegs;
+		vector<int> paramOffsets;
+		
+		if (numOptionalArgsPassed > 0) {
+			buffer->emit("STORI")
+		}
+		// calculate the size of the stack with all the arguments
+		for (int i = 0; i < paramCount; i++){
+			if (paramTypes[i] == int_t){
+				offset += 4;
+				paramsCurrentOffset -= 4;
+			}
+			else if (paramTypes[i] == float_t){
+				offset += 4;
+				paramsCurrentOffset -= 4;
+			}
+			paramOffsets.push_back(paramsCurrentOffset);
+		}
+		// set the stack pointer (I2) to the top of the stack
+		buffer->emit("ADDI I2 I2 " + intToString(offset));
+		currentScopeOffset += offset;
+		// set I1 to the address of the first argument
+		buffer->emit("COPYI I1 I2");
+		buffer->emit("CITOF F1 I1")
+
+		// store arguments to the stack
+		for (int i = 0; i < paramCount; i++){
+			if (paramTypes[i] == int_t){
+				buffer->emit("STORI I" + intToString(paramRegs[i]) + " I1 " + intToString(paramOffsets[i]));
+			}
+			else if (paramTypes[i] == float_t){
+				buffer->emit("STORF F" + intToString(paramRegs[i]) + " F1 " + intToString(paramOffsets[i]));
+			}
+		}
+		// store num of optional arguments passed
+		buffer->emit("STORI I" + intToString(tempReg) + " I1 -8");
+
+		// call function
+		// add the address of the function call to the calling addresses of the function
+		functionTable[functionName].callingAddresses.push_back(buffer->nextquad());
+		buffer->emit("JLINK ");
+
+		// back from function call, restore registers
+
+		// set the stack pointer (I2) to the top of the stack
+		buffer->emit("COPYI I2 I1");
+
+		// set return value to a register
+		if (functionTable[functionName].returnType == int_t){
+			$$.type = int_t;
+			$$.regNum = currentScopeRegsNumInt;
+			buffer->emit("LOADI I" + intToString($$.regNum) + " I1 -4");
+		}
+		else if (functionTable[functionName].returnType == float_t){
+			$$.type = float_t;
+			$$.regNum = currentScopeRegsNumFloat;
+			buffer->emit("CITOF F1 I1");
+			buffer->emit("LOADF F" + intToString($$.regNum) + " F1 -4");
+		}
+		else {
+			$$.type = void_t;
+		}
+		// close the stack
+		buffer->emit("SUBI I2 I2 " + intToString(offset));
+		buffer->emit("CITOF F2 I2");
+
+		// restore registers
+		offset = 0;
+		// LOADI for all integer registers (no need to restore return value, it's already restored)
+		for (int i = 0; i < currentScopeRegsNumInt; i++){
+			// skip I2
+			if (i == 2){
+				offset += 4;
+				continue;
+			}
+			buffer->emit("LOADI I" + intToString(i) + " I2 " + intToString(offset));
+			offset += 4;
+		}
+
+		// LOADF for all float registers (no need to restore return value, it's already restored)
+
+		if (functionTable[functionName].returnType == int_t){
+			currentScopeRegsNumInt++;
+		}
+		else if (functionTable[functionName].returnType == float_t){
+			currentScopeRegsNumFloat++;
+		}
 	}
 ;
 
 // function call argument rules
 CALL_ARGS : CALL_ARGLIST {
-		; // ************************************************
+		// insert arguments to CALL_ARGS
+		$$.argTypes = $1.paramTypes;
+		$$.argRegs = $1.paramRegs;
+		// clear CALL_ARGLIST
+		$1.paramTypes.clear();
+		$1.paramRegs.clear();
 	}
-	| /* empty */ {
-		; // ************************************************
-	} %empty
+	| /* empty */ {} %empty
 ;
 
 // function call argument list rules
 CALL_ARGLIST : CALL_ARGLIST COMMA EXP {
-		; // ************************************************
+		// insert arguments to CALL_ARGLIST from CALL_ARGLIST
+		$$.paramTypes = $1.paramTypes;
+		$$.paramRegs = $1.paramRegs;
+		// insert arguments to CALL_ARGLIST from EXP
+		$$.paramTypes.push_back($3.type);
+		$$.paramRegs.push_back($3.regNum);
+		// clear CALL_ARGLIST
+		$1.paramTypes.clear();
+		$1.paramRegs.clear();
 	}
 	| EXP {
-		; // ************************************************
+		// arguments cant be void
+		$$.paramTypes.push_back($1.type);
+		$$.paramRegs.push_back($1.regNum);
 	}
 ;
 

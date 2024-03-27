@@ -48,65 +48,46 @@ comment     (#.*)
 
 
 %%
-{int}                       {yylval.str = NULL;
-                                return INT;}
-{float}                     {yylval.str = NULL;
-                                return FLOAT;}
-{void}                      {yylval.str = NULL;
-                                return VOID;}
-{write}                     {yylval.str = NULL;
-                                return WRITE_;}
-{read}                      {yylval.str = NULL;
-                                return READ_;}
-{optional}                  {yylval.str = NULL;
-                                return OPTIONAL;}
-{while}                     {yylval.str = NULL;
-                                return WHILE;}
-{do}                        {yylval.str = NULL;
-                                return DO;}
-{if}                        {yylval.str = NULL;
-                                return IF;}
-{then}                      {yylval.str = NULL;
-                                return THEN;}
-{else}                      {yylval.str = NULL;
-                                return ELSE;}
-{return}                    {yylval.str = NULL;
-                                return RETURN_;}
-{lparen}                    {yylval.str = NULL; 
-                                return LPAREN;}
-{rparen}                    {yylval.str = NULL; 
-                                return RPAREN;}
-{lbrace}                    {yylval.str = NULL; 
-                                return LBRACE;}
-{rbrace}                    {yylval.str = NULL; 
-                                return RBRACE;}
-{comma}                     {yylval.str = NULL; 
-                                return COMMA;}
-{colon}                     {yylval.str = NULL; 
-                                return COLON;}
-{semicolon}                 {yylval.str = NULL;
-                                return SEMICOLON;}
-{id}                        {yylval.str = strdup(yytext); 
+{int}                       { return INT; }
+{float}                     { return FLOAT; }
+{void}                      { return VOID; }
+{write}                     { return WRITE_; }
+{read}                      { return READ_; }
+{optional}                  { return OPTIONAL; }
+{while}                     { return WHILE; }
+{do}                        { return DO; }
+{if}                        { return IF; }
+{then}                      { return THEN; }
+{else}                      { return ELSE; }
+{return}                    { return RETURN_; }
+{lparen}                    { return LPAREN; }
+{rparen}                    { return RPAREN; }
+{lbrace}                    { return LBRACE; }
+{rbrace}                    { return RBRACE; }
+{comma}                     { return COMMA; }
+{colon}                     { return COLON; }
+{semicolon}                 { return SEMICOLON; }
+{id}                        {yylval.str = yytext; 
                                 return ID;}
-{integernum}                {yylval.str = strdup(yytext); 
+{integernum}                {yylval.str = yytext; 
                                 return INTEGERNUM;}
-{realnum}                   {yylval.str = strdup(yytext); 
+{realnum}                   {yylval.str = yytext; 
                                 return REALNUM;}
-{str}                       {yylval.str = strdup(removeQuotes().c_str()); 
+{str}                       {yylval.str = removeQuotes(); 
                                 return STR;}
-{relop}                     {yylval.str = strdup(yytext); 
+{relop}                     {yylval.str = yytext; 
                                 return RELOP;}
-{addop}                     {yylval.str = strdup(yytext); 
+{addop}                     {yylval.str = yytext; 
                                 return ADDOP;}
-{mulop}                     {yylval.str = strdup(yytext); 
+{mulop}                     {yylval.str = yytext; 
                                 return MULOP;}
-{assign}                    {yylval.str = strdup(yytext); 
+{assign}                    {yylval.str = yytext; 
                                 return ASSIGN;}
-{and}                       {yylval.str = strdup(yytext); 
+{and}                       {yylval.str = yytext; 
                                 return AND;}
-{or}                        {yylval.str = strdup(yytext); 
+{or}                        {yylval.str = yytext; 
                                 return OR;}
-{not}                       {yylval.str = strdup(yytext); 
+{not}                       {yylval.str = yytext; 
                                 return NOT;}
 {whitespace}                ;
 {comment}                   ;

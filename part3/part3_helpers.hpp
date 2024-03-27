@@ -71,9 +71,12 @@ class Function {
         vector<int> callingAddresses;
         // Indicator for if the function has been defined or not
         bool defined;
-        
-
-        // might need to add more to support optional parameters
+        // max number of optional parameters
+        int optionalParamsNum;
+        // list of optional parameters types
+        vector<Type> optionalParamsTypes;
+        // list of optional parameters values
+        vector<string> optionalParamsValues;
 };
 
 // Definition of Buffer class
