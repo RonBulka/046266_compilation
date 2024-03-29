@@ -1,10 +1,10 @@
-# Makefile for part2
+# Makefile for part3
 all: rx-cc
 
 rx-cc: lex.yy.o part3.tab.o part3_helpers.o
 	g++ -o $@ $^
 
-part3_helpers.o: part3_helpers.c part3_helpers.hpp
+part3_helpers.o: part3_helpers.cpp part3_helpers.hpp
 	g++ -c -o $@ part3_helpers.cpp
 
 part3.tab.o: part3.tab.cpp part3.tab.hpp
@@ -16,7 +16,7 @@ lex.yy.o: lex.yy.c part3.tab.hpp
 lex.yy.c: part1.lex part3.tab.hpp part3_helpers.hpp
 	flex part1.lex
 
-part3.tab.cpp part3.tab.hpp: part2.ypp part3_helpers.hpp
+part3.tab.cpp part3.tab.hpp: part3.ypp part3_helpers.hpp
 	bison -d part3.ypp
 
 .PHONY: clean

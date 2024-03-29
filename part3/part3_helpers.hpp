@@ -1,7 +1,7 @@
 /* 046266 Compilation Methods, EE Faculty, Technion                        */
 
-#ifndef _PART3_HELPER_H_
-#define _PART3_HELPER_H_
+#ifndef _PART3_HELPERS_H_
+#define _PART3_HELPERS_H_
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -13,6 +13,7 @@
 #include <sstream>
 #include <algorithm>
 
+
 #define LEXICAL_ERROR 1
 #define SYNTAX_ERROR 2
 #define SEMANTIC_ERROR 3
@@ -20,34 +21,40 @@
 
 using namespace std;
 
-typedef enum {int_t = 1 , float_t = 2, void_t = 0} Type;
+typedef enum {
+    void_t = 0,
+    int_t = 1, 
+    float_t = 2 
+} Type;
 
 // make a string out of an int
 string intToString(double num);
 
 // merge two lists for backpatching
 template <typename T>
-vector<T> merge(vector<T>& lst1, vector<T>& lst2);
+vector<T> merge(vector<T>& lst1, vector<T>& lst2){
+    vector<T> result = lst1;
+    result.insert(result.end(), lst2.begin(), lst2.end());
+    return result;
+}
 
 // Definition of a token's fields
 typedef struct {
-    // Name of the token (in case it represents an identifier)
-    string str;
-    // Type of the token
-    Type type;
-    // Offset in memory
-    int offset;
-    vector<int> nextList; 
+    string str; // Name of the token (in case it represents an identifier)
+    Type type;  // Type of the token
+    int offset; // Offset in memory
+    int quad; // Number of line the token's expression will be printed at in the .rsk file
+    int regNum; // Number of the register the token is assigned
+    string value; // Value of the token (in case it represents a constant)
+    // function related attributes
+    vector<Type> paramTypes;    // List of parameters types in function's definition
+    vector<int> paramRegs;      // List of parameters' registers number in function's definition
+    vector<string> paramIds;    // List of parameters' ids in function's definition
+
+    // Exp attributes
+    vector<int> nextList;
     vector<int> trueList;
     vector<int> falseList;
-    // Number of line the token's expression will be printed at in the .rsk file
-    int quad;
-    // Number of the register the token is assigned
-    int regNum;
-    // List of parameters types in function's definition
-    vector<Type> paramTypes;
-    // List of parameters registers numbers in function's definition
-    vector<int> paramRegs; 
 } yystype;
 
 // Definition of Symbol struct
@@ -55,28 +62,30 @@ class Symbol {
     public:
         map<int, Type> type; // the type of the symbol in each depth
         map<int, int> offset;// the offset of the symbol in each depth
-        int depth; //the depth in which the most inner symbol is defined in.
+        int depth; //the depth in which the most inner symbol is implemented in.
 };
 
 // Definition of Function class
 class Function {
     public:
+        // Indicator for if the function has been implemented or not
+        bool implemented;
         // The address of the implementation of the function in the buffer
         int address;
-        // The return type of the function
-        Type returnType;
+        // the starting index of optional parameters
+        int optionalParamsStart;
+        // max number of optional parameters
+        int optionalParamsNum;
         // The types of the parameters of the function
         vector<Type> paramTypes;
         // List of all the addresses of the function calls
         vector<int> callingAddresses;
-        // Indicator for if the function has been defined or not
-        bool defined;
-        // max number of optional parameters
-        int optionalParamsNum;
         // list of optional parameters types
         vector<Type> optionalParamsTypes;
         // list of optional parameters values
         vector<string> optionalParamsValues;
+        // The return type of the function
+        Type returnType;
 };
 
 // Definition of Buffer class
@@ -85,6 +94,8 @@ class Buffer {
     public:
         // Constructor of Buffer class
         Buffer();
+        // Destructor of Buffer class
+        ~Buffer();
         // Emit a command as a new line at the end of the buffer
         void emit(const string& str);
         // Emit a command as a new line at the beginning of the buffer
@@ -97,26 +108,27 @@ class Buffer {
         string printBuffer();
 };
 
-// Global variables
-// buffer for the code generation
-static Buffer * buffer;
-// buffer for the main function
-static Buffer mainBuffer;
-static map<string, Symbol> symbolTable;
-static map<string, Function> functionTable;
-static int currentReturnType;
+/*******************************************GLOBALS*******************************************/
+static Buffer * buffer; // buffer for the code generation
+static Buffer mainBuffer; // buffer for the main function
+static map<string, Symbol> symbolTable; // Table that contains all symbols implemented in prog
+static map<string, Function> functionTable; // Table that contains all functions - each function with it's members
+static Type currentReturnType;
+
 /*
 * I0 - reserved for return address
 * I1 - reserved for the beginning of the stack frame
 * I2 - reserved for the top of the the stack frame
 */
-static int currectScopeRegsNumInt = 3;
+static int currentScopeRegsNumInt = 3;
+
 /*
 * F0 - reserved for return address
 * F1 - reserved for the beginning of the stack frame
 * F2 - reserved for the top of the the stack frame
 */
-static int currectScopeRegsNumFloat = 3;
+static int currentScopeRegsNumFloat = 3;
+
 // offset of the current scope
 static int currentScopeOffset = 0; 
 // offset of the previous scope
@@ -127,6 +139,7 @@ static int currentBlockDepth = 0;
 static vector<string> currentParamInsertionOrder;
 // temporary order of the parameters in the current function
 static vector<string> tmpParamInsertionOrder;
+/**********************************************************************************************/
 
-#define YYSTYPE yystype 
+#define YYSTYPE yystype
 #endif
