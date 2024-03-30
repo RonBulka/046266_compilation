@@ -83,7 +83,7 @@ class Function {
         // list of optional parameters types
         vector<Type> optionalParamsTypes;
         // list of optional parameters values
-        vector<string> optionalParamsValues;
+        // vector<string> optionalParamsValues;
         // The return type of the function
         Type returnType;
 };
@@ -139,6 +139,14 @@ static int currentBlockDepth = 0;
 static vector<string> currentParamInsertionOrder;
 // temporary order of the parameters in the current function
 static vector<string> tmpParamInsertionOrder;
+// order of the optional parameters in the current function
+static vector<string> currentOptionalParamInsertionOrder;
+// temporary order of the optional parameters in the current function
+static vector<string> tmpOptionalParamInsertionOrder;
+// values of the optional parameters in the current function
+static vector<string> currentOptionalParamValues;
+// temporary values of the optional parameters in the current function
+static vector<string> tmpOptionalParamValues;
 /**********************************************************************************************/
 
 #define YYSTYPE yystype

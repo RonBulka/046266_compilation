@@ -54,13 +54,13 @@ FDEFS :   FDEFS FUNC_DEF_API M BLK {
 			// set the function as implemented
 			functionTable[$2.str].implemented = true;
 			// set the function address
-			functionTable[$2.str].address = $3.quad;
+			// functionTable[$2.str].address = $3.quad;
 		}
 		// catch void return
 		buffer->emit("RETRN");
 		// clear symbol table
 		symbolTable.clear();
-		$2.paramTypes.clear();
+		$3.paramTypes.clear();
 		// clear current scope registers
 		currentScopeRegsNumInt = 3;
 		currentScopeRegsNumFloat = 3;
@@ -76,6 +76,11 @@ FDEFS :   FDEFS FUNC_DEF_API M BLK {
 		}
 		// clear symbol table
 		symbolTable.clear();
+		// clear current scope registers
+		currentScopeRegsNumInt = 3;
+		currentScopeRegsNumFloat = 3;
+		// clear current scope offset
+		currentScopeOffset = 0;
 	}
 	| /* empty */ { } %empty
 ;
@@ -107,7 +112,7 @@ FUNC_DEC_API :   TYPE ID LPAREN RPAREN SEMICOLON {
 			newFunction.optionalParamsNum = 0;
 			newFunction.paramTypes.clear();
 			newFunction.optionalParamsTypes.clear();
-			newFunction.optionalParamsValues.clear();
+			// newFunction.optionalParamsValues.clear();
 			functionTable[$2.str] = newFunction;
 		}
 		$$.str = $2.str;
@@ -151,37 +156,239 @@ FUNC_DEC_API :   TYPE ID LPAREN RPAREN SEMICOLON {
 			newFunction.optionalParamsNum = 0;
 			newFunction.paramTypes = paramTypesTmp;
 			newFunction.optionalParamsTypes.clear();
-			newFunction.optionalParamsValues.clear();
+			// newFunction.optionalParamsValues.clear();
 			functionTable[$2.str] = newFunction;
 
 			currentParamInsertionOrder.clear();
+			// return current scope offset
+			currentScopeOffset = currentScopeOffset + offset + 8;
 		}
 		$$.str = $2.str;
 		$$.type = $1.type;
 	}
-	| TYPE ID LPAREN FUNC_DEC_ARGLIST_OPT RPAREN SEMICOLON { 
+	| TYPE ID LPAREN FUNC_DEC_ARGLIST_OPT RPAREN SEMICOLON {
+		cerr << "Function '" << $2.str << "' declared with return type " << $1.type << " and only optional parameters" << endl;
+		if ($2.str == "main"){
+			printSemanticError("Main function cant have optional parameters");
+		}
+		if (functionTable.find($2.str) != functionTable.end()) {
+			// found in function table
+			// check if return type matches
+			if (functionTable[$2.str].returnType != $1.type){
+				printSemanticError("Function '" + $2.str + "' already declared with different return type");
+			}
+			// check if parameters match
+			else if (functionTable[$2.str].paramTypes != $4.paramTypes){
+				printSemanticError("Function '" + $2.str + "' already declared with different parameters");
+			}
+			else if (functionTable[$2.str].optionalParamsNum != currentOptionalParamInsertionOrder.size()){
+				printSemanticError("Function '" + $2.str + "' already declared with optional parameters");
+			}
+		}
+		else {
+			// not found in function table
+			// set offset and type of each optional parameter
+			int offset = 0;
+			int maxNumOptionalParams = currentOptionalParamInsertionOrder.size();
+			
+			vector<Type> optParamTypesTmp;
+			for (int i=0 ; i < maxNumOptionalParams; i++){
+				string param = currentOptionalParamInsertionOrder[i];
+				Type paramType = symbolTable[param].type[currentBlockDepth];
+				optParamTypesTmp.push_back(paramType);
+				symbolTable[param].offset[currentBlockDepth] = offset;
+				offset += 4;
+			}
+			// insert function to function table
+			Function newFunction;
+			newFunction.returnType = $1.type;
+			newFunction.implemented = false;
+			newFunction.optionalParamsStart = 0;
+			newFunction.optionalParamsNum = maxNumOptionalParams;
+			newFunction.paramTypes = optParamTypesTmp;
+			newFunction.optionalParamsTypes = optParamTypesTmp;
+			// newFunction.optionalParamsValues.clear();
+			functionTable[$2.str] = newFunction;
+
+			currentOptionalParamInsertionOrder.clear();
+		}
+		$$.str = $2.str;
+		$$.type = $1.type;
 
 	}
 	| TYPE ID LPAREN FUNC_ARGLIST COMMA FUNC_DEC_ARGLIST_OPT RPAREN SEMICOLON { 
+		cerr << "Function '" << $2.str << "' declared with return type " << $1.type 
+		<< " and with both normal and optional parameters" << endl;
+		if ($2.str == "main"){
+			printSemanticError("Main function cant have both normal and optional parameters");
+		}
+		vector<Type> allParamTypes = merge($4.paramTypes, $6.paramTypes);
+		if (functionTable.find($2.str) != functionTable.end()) {
+			// found in function table
+			// check if return type matches
+			if (functionTable[$2.str].returnType != $1.type){
+				printSemanticError("Function '" + $2.str + "' already declared with different return type");
+			}
+			// check if parameters match
+			else if (functionTable[$2.str].paramTypes != allParamTypes){
+				printSemanticError("Function '" + $2.str + "' already declared with different parameters");
+			}
+			else if (functionTable[$2.str].optionalParamsNum != currentOptionalParamInsertionOrder.size()){
+				printSemanticError("Function '" + $2.str + "' already declared with optional parameters");
+			}
+		}
+		else {
+			// not found in function table
+			// set offset and type of each normal parameter
+			int offset = -8;
+			vector<Type> paramTypesTmp;
+			int maxNumParams = currentParamInsertionOrder.size();
+			for (int i=0 ; i < maxNumParams; i++){
+				string param = currentParamInsertionOrder[i];
+				Type paramType = symbolTable[param].type[currentBlockDepth];
+				paramTypesTmp.push_back(paramType);
+				offset -= 4;
+				symbolTable[param].offset[currentBlockDepth] = offset;
+			}
+			currentParamInsertionOrder.clear();
+			// return current scope offset
+			currentScopeOffset = currentScopeOffset + offset + 8;
+			// set offset and type of each optional parameter
+			offset = 0;
+			int maxNumOptionalParams = currentOptionalParamInsertionOrder.size();
+			vector<Type> optParamTypesTmp;
+			for (int i=0 ; i < maxNumOptionalParams; i++){
+				string param = currentOptionalParamInsertionOrder[i];
+				Type paramType = symbolTable[param].type[currentBlockDepth];
+				optParamTypesTmp.push_back(paramType);
+				symbolTable[param].offset[currentBlockDepth] = offset;
+				offset += 4;
+			}
+			// insert function to function table
+			Function newFunction;
+			newFunction.returnType = $1.type;
+			newFunction.implemented = false;
+			newFunction.optionalParamsStart = -(maxNumParams*4) - 8;
+			newFunction.optionalParamsNum = maxNumOptionalParams;
+			newFunction.paramTypes = allParamTypes;
+			newFunction.optionalParamsTypes = optParamTypesTmp;
+			// newFunction.optionalParamsValues.clear();
+			functionTable[$2.str] = newFunction;
+
+			currentOptionalParamInsertionOrder.clear();
+		}
+		$$.str = $2.str;
+		$$.type = $1.type;
 		
 	}
 ;
 
 FUNC_DEC_ARGLIST_OPT : FUNC_DEC_ARGLIST_OPT COMMA DCL_OPT { 
-
+		cerr << "Function argument '" << $3.str << "' of type " << $3.type << endl;
+		// insert parameters to currentOptionalParamInsertionOrder
+		for (int i = tmpOptionalParamInsertionOrder.size()-1; i >= 0 ; i--){
+			currentOptionalParamInsertionOrder.push_back(tmpOptionalParamInsertionOrder[i]);
+		}
+		tmpOptionalParamInsertionOrder.clear();
+		vector<Type> paramTypesTmp = $3.paramTypes;
+		reverse(paramTypesTmp.begin(), paramTypesTmp.end());
+		$$.paramTypes = merge($1.paramTypes, paramTypesTmp);
+		$1.paramTypes.clear();
+		$3.paramTypes.clear();
 	}
 	| DCL_OPT { 
-
+		cerr << "Function argument '" << $1.str << "' of type " << $1.type << endl;
+		for (int i = tmpOptionalParamInsertionOrder.size()-1; i >= 0 ; i--){
+			currentOptionalParamInsertionOrder.push_back(tmpOptionalParamInsertionOrder[i]);
+		}
+		tmpOptionalParamInsertionOrder.clear();
+		$$.paramTypes = $1.paramTypes;
+		reverse($$.paramTypes.begin(), $$.paramTypes.end());
 	}
 ;
 
 DCL_OPT : ID COLON OPTIONAL TYPE { 
+		cerr << "Optional Variable '" << $1.str << "' declared with type " << $4.type << endl;
+		// cant declare void
+		if ($4.type == void_t){
+			printSemanticError("Can't declare void");
+		}
+		// check if the variable isnt in the function list parameters
+		if (find(currentParamInsertionOrder.begin(), currentParamInsertionOrder.end(), $1.str) 
+			!= currentParamInsertionOrder.end()){
+			printSemanticError("Variable '" + $1.str + "' already declared as a parameter");
+		}
+		if (find(currentOptionalParamInsertionOrder.begin(), currentOptionalParamInsertionOrder.end(), $1.str) 
+			!= currentOptionalParamInsertionOrder.end()){
+			printSemanticError("Variable '" + $1.str + "' already declared as a parameter");
+		}
+		previousScopeOffset = currentScopeOffset;
+		$$.str = $1.str;
+		$$.type = $4.type;
+		$$.offset = currentScopeOffset;
+		$$.paramTypes.push_back($4.type);
 
+		// check if the variable is already declared
+		if (symbolTable.find($1.str) == symbolTable.end()){
+			// not found in symbol table, insert it
+			Symbol newSymbol;
+			newSymbol.depth = currentBlockDepth;
+			newSymbol.type[currentBlockDepth] = $4.type;
+			newSymbol.offset[currentBlockDepth] = currentScopeOffset;
+			currentScopeOffset += 4;
+			symbolTable[$1.str] = newSymbol;
+			tmpOptionalParamInsertionOrder.push_back($1.str);
+		}
+		else { // found in symbol table
+			printSemanticError("Optional variable '" + $1.str + "' already declared");
+		}
 	}
 	| ID COMMA DCL_OPT{ 
+		cerr << "Optional variable '" << $1.str << "' declared with type " << $3.type << endl;
+		// cant declare void
+		if ($3.type == void_t){
+			printSemanticError("Can't declare void");
+		}
+		// check if the variable isnt in the function list parameters
+		if (find(currentParamInsertionOrder.begin(), currentParamInsertionOrder.end(), $1.str) 
+			!= currentParamInsertionOrder.end()){
+			printSemanticError("Variable '" + $1.str + "' already declared as a parameter");
+		}
+		if (find(tmpParamInsertionOrder.begin(), tmpParamInsertionOrder.end(), $1.str) 
+			!= tmpParamInsertionOrder.end()){
+			printSemanticError("Variable '" + $1.str + "' already declared as a parameter");
+		}
+		if (find(currentOptionalParamInsertionOrder.begin(), currentOptionalParamInsertionOrder.end(), $1.str) 
+			!= currentOptionalParamInsertionOrder.end()){
+			printSemanticError("Variable '" + $1.str + "' already declared as a parameter");
+		}
 
+		if (find(tmpOptionalParamInsertionOrder.begin(), tmpOptionalParamInsertionOrder.end(), $1.str) 
+			!= tmpOptionalParamInsertionOrder.end()){
+			printSemanticError("Variable '" + $1.str + "' already declared as a parameter");
+		}
+
+		$$.str = $1.str;
+		$$.type = $3.type;
+		$$.offset = currentScopeOffset;
+		$$.paramTypes = $3.paramTypes;
+		$$.paramTypes.push_back($3.type);
+		if (symbolTable.find($1.str) == symbolTable.end()){
+			// not found in symbol table, insert it
+			Symbol newSymbol;
+			newSymbol.depth = currentBlockDepth;
+			newSymbol.type[currentBlockDepth] = $3.type;
+			newSymbol.offset[currentBlockDepth] = currentScopeOffset;
+			currentScopeOffset += 4;
+			symbolTable[$1.str] = newSymbol;
+			tmpOptionalParamInsertionOrder.push_back($1.str);
+		}
+		else { // found in symbol table
+			printSemanticError("Optional variable '" + $1.str + "' already declared");
+		}
 	}
 ;
+
 
 // function definition rules
 FUNC_DEF_API : TYPE ID LPAREN RPAREN {
@@ -211,12 +418,13 @@ FUNC_DEF_API : TYPE ID LPAREN RPAREN {
 			// insert function to function table
 			Function newFunction;
 			newFunction.returnType = $1.type;
+			newFunction.address = buffer->nextquad();
 			newFunction.implemented = false;
 			newFunction.optionalParamsStart = 0;
 			newFunction.optionalParamsNum =0;
 			newFunction.paramTypes.clear();
 			newFunction.optionalParamsTypes.clear();
-			newFunction.optionalParamsValues.clear();
+			// newFunction.optionalParamsValues.clear();
 			functionTable[$2.str] = newFunction;
 		}
 		// set current function return type
@@ -266,14 +474,17 @@ FUNC_DEF_API : TYPE ID LPAREN RPAREN {
 			Function newFunction;
 			newFunction.returnType = $1.type;
 			newFunction.implemented = false;
+			newFunction.address = buffer->nextquad();
 			newFunction.optionalParamsStart = 0;
 			newFunction.optionalParamsNum = 0;
 			newFunction.paramTypes = paramTypesTmp;
 			newFunction.optionalParamsTypes.clear();
-			newFunction.optionalParamsValues.clear();
+			// newFunction.optionalParamsValues.clear();
 			functionTable[$2.str] = newFunction;
 
 			currentParamInsertionOrder.clear();
+			// return current scope offset
+			currentScopeOffset = currentScopeOffset + offset + 8;
 		}
 		// set current function return type
 		currentReturnType = $1.type;
@@ -282,26 +493,372 @@ FUNC_DEF_API : TYPE ID LPAREN RPAREN {
 		$$.type = $1.type;
 	}
 	| TYPE ID LPAREN FUNC_DEF_ARGLIST_OPT RPAREN {
+		cerr << "Function '" << $2.str << "' declared with return type " << $1.type << " and only optional parameters" << endl;
+		if ($2.str == "main"){
+			printSemanticError("Main function cant have optional parameters");
+		}
+		if (functionTable.find($2.str) != functionTable.end()) {
+			// found in function table
+			if (!functionTable[$2.str].implemented){
+				// check if return type matches
+				if (functionTable[$2.str].returnType != $1.type){
+					printSemanticError("Function '" + $2.str + "' already declared with different return type");
+				}
+				// check if parameters match
+				else if (functionTable[$2.str].paramTypes != $4.paramTypes){
+					printSemanticError("Function '" + $2.str + "' already declared with different parameters");
+				}
+				else if (functionTable[$2.str].optionalParamsNum != currentOptionalParamInsertionOrder.size()){
+					printSemanticError("Function '" + $2.str + "' already declared with optional parameters");
+				}
+			}
+			else {
+				printSemanticError("Function '" + $2.str + "' already implemented");
+			}
+		}
+		else {
+			// not found in function table
+			int startAddress = buffer->nextquad();
+			// set offset and type of each optional parameter
+			int offset = 0;
+			int maxNumOptionalParams = currentOptionalParamInsertionOrder.size();
+			// increase top stack pointer (I2) by 4 for each optional parameter
+			buffer->emit("ADD2I I2 I2 " + intToString(maxNumOptionalParams*4));
+			buffer->emit("CITOF F1 I1");
+			int defIntReg = currentScopeRegsNumInt++;
+			int defFloatReg = currentScopeRegsNumFloat++;
+			vector<Type> optParamTypesTmp;
+			for (int i=0 ; i < maxNumOptionalParams; i++){
+				string param = currentOptionalParamInsertionOrder[i];
+				Type paramType = symbolTable[param].type[currentBlockDepth];
+				optParamTypesTmp.push_back(paramType);
+				// initialize default values for optional parameters
+				if (paramType == int_t){
+					buffer->emit("COPYI I" + intToString(defIntReg) + " " + currentOptionalParamValues[i]);
+					buffer->emit("STORI I" + intToString(defIntReg) + " I1 " + intToString(i*4));
+				}
+				else if (paramType == float_t){
+					buffer->emit("COPYF F" + intToString(defFloatReg) + " " + currentOptionalParamValues[i]);
+					buffer->emit("STORF F" + intToString(defFloatReg) + " F1 " + intToString(i*4));
+				}
+				symbolTable[param].offset[currentBlockDepth] = offset;
+				offset += 4;
+			}
+			// update optional parameters values based on the passed registers
+			// get the number of optional parameters passed
+			int optParamNumReg = currentScopeRegsNumInt++;
+			buffer->emit("LOADI I" + intToString(optParamNumReg) + " I1 -8");
+			// set pointers to the beginning of the optional parameters
+			int ptrRegInt = currentScopeRegsNumInt++;
+			int ptrRegFloat = currentScopeRegsNumFloat++;
+			buffer->emit("ADD2I I" + intToString(ptrRegInt) + " I1 -12");
+			buffer->emit("CITOF F" + intToString(ptrRegFloat) + " I" + intToString(ptrRegInt));
+			int iReg = currentScopeRegsNumInt++;
+			buffer->emit("COPYI I" + intToString(iReg) + " 0");
+			int nextLabel;
+			int compareReg = currentScopeRegsNumInt++;
+			int loadRegInt = currentScopeRegsNumInt++;
+			int loadRegFloat = currentScopeRegsNumFloat++;
+			for (int i = 0 ; i < maxNumOptionalParams; i++){
+				Type paramType = optParamTypesTmp[i];
+				if (paramType == int_t){
+					// check if the iReg is less than optParamNumReg
+					buffer->emit("SLETI I" + intToString(compareReg) + " I" + intToString(iReg) + " I" + intToString(optParamNumReg));
+					nextLabel = buffer->nextquad() + 6;
+					buffer->emit("BREQZ I" + intToString(compareReg) + " " + intToString(nextLabel));
+					buffer->emit("LOADI I" + intToString(loadRegInt) + " I" + intToString(ptrRegInt) + " 0");
+					buffer->emit("STORI I" +  intToString(loadRegInt) + " I1 " + intToString(i*4));
+					buffer->emit("ADD2I I" + intToString(ptrRegInt) + " I" + intToString(ptrRegInt) + " -4");
+					buffer->emit("CITOF F" + intToString(ptrRegFloat) + " I" + intToString(ptrRegInt));
+					buffer->emit("ADD2I I" + intToString(iReg) + " I" + intToString(iReg) + " 1");
+				}
+				else if (paramType == float_t){
+					// check if the iReg is less than optParamNumReg
+					buffer->emit("SLETI I" + intToString(compareReg) + " I" + intToString(iReg) + " I" + intToString(optParamNumReg));
+					nextLabel = buffer->nextquad() + 6;
+					buffer->emit("BREQZ I" + intToString(compareReg) + " " + intToString(nextLabel));
+					buffer->emit("LOADF F" + intToString(loadRegFloat) + " F" + intToString(ptrRegFloat) + " 0");
+					buffer->emit("STORF F" +  intToString(loadRegFloat) + " F1 " + intToString(i*4));
+					buffer->emit("ADD2F F" + intToString(ptrRegFloat) + " F" + intToString(ptrRegFloat) + " -4");
+					buffer->emit("CFTOI I" + intToString(ptrRegInt) + " F" + intToString(ptrRegFloat));
+					buffer->emit("ADD2I I" + intToString(iReg) + " I" + intToString(iReg) + " 1");
+				}
+			}
+			// insert function to function table
+			Function newFunction;
+			newFunction.returnType = $1.type;
+			newFunction.implemented = false;
+			newFunction.address = startAddress;
+			newFunction.optionalParamsStart = 0;
+			newFunction.optionalParamsNum = maxNumOptionalParams;
+			newFunction.paramTypes = optParamTypesTmp;
+			newFunction.optionalParamsTypes = optParamTypesTmp;
+			// newFunction.optionalParamsValues = currentOptionalParamValues;
+			functionTable[$2.str] = newFunction;
+
+			currentOptionalParamInsertionOrder.clear();
+			// reset registers
+			// currentScopeRegsNumInt = 3;
+			// currentScopeRegsNumFloat = 3;
+		}
+		// set current function return type
+		currentReturnType = $1.type;
+		$$.str = $2.str;
+		$$.type = $1.type;
 
 	}
 	| TYPE ID LPAREN FUNC_ARGLIST COMMA FUNC_DEF_ARGLIST_OPT RPAREN {
+		cerr << "Function '" << $2.str << "' declared with return type " << $1.type 
+		<< " and with both normal and optional parameters" << endl;
+		if ($2.str == "main"){
+			printSemanticError("Main function cant have both normal and optional parameters");
+		}
+		vector<Type> allParamTypes = merge($4.paramTypes, $6.paramTypes);
+		if (functionTable.find($2.str) != functionTable.end()) {
+			// found in function table
+			// check if return type matches
+			if (functionTable[$2.str].returnType != $1.type){
+				printSemanticError("Function '" + $2.str + "' already declared with different return type");
+			}
+			// check if parameters match
+			else if (functionTable[$2.str].paramTypes != allParamTypes){
+				printSemanticError("Function '" + $2.str + "' already declared with different parameters");
+			}
+			else if (functionTable[$2.str].optionalParamsNum != currentOptionalParamInsertionOrder.size()){
+				printSemanticError("Function '" + $2.str + "' already declared with optional parameters");
+			}
+		}
+		else {
+			// not found in function table
+			// set offset and type of each normal parameter
+			int offset = -8;
+			vector<Type> paramTypesTmp;
+			int maxNumParams = currentParamInsertionOrder.size();
+			for (int i=0 ; i < maxNumParams; i++){
+				string param = currentParamInsertionOrder[i];
+				Type paramType = symbolTable[param].type[currentBlockDepth];
+				paramTypesTmp.push_back(paramType);
+				offset -= 4;
+				symbolTable[param].offset[currentBlockDepth] = offset;
+			}
+			currentParamInsertionOrder.clear();
+			// return current scope offset
+			currentScopeOffset = currentScopeOffset + offset + 8;
+			int startAddress = buffer->nextquad();
+			// set offset and type of each optional parameter
+			offset = 0;
+			int maxNumOptionalParams = currentOptionalParamInsertionOrder.size();
+			// increase top stack pointer (I2) by 4 for each optional parameter
+			buffer->emit("ADD2I I2 I2 " + intToString(maxNumOptionalParams*4));
+			buffer->emit("CITOF F1 I1");
+			int defIntReg = currentScopeRegsNumInt++;
+			int defFloatReg = currentScopeRegsNumFloat++;
+			vector<Type> optParamTypesTmp;
+			for (int i=0 ; i < maxNumOptionalParams; i++){
+				string param = currentOptionalParamInsertionOrder[i];
+				Type paramType = symbolTable[param].type[currentBlockDepth];
+				optParamTypesTmp.push_back(paramType);
+				// initialize default values for optional parameters
+				if (paramType == int_t){
+					buffer->emit("COPYI I" + intToString(defIntReg) + " " + currentOptionalParamValues[i]);
+					buffer->emit("STORI I" + intToString(defIntReg) + " I1 " + intToString(i*4));
+				}
+				else if (paramType == float_t){
+					buffer->emit("COPYF F" + intToString(defFloatReg) + " " + currentOptionalParamValues[i]);
+					buffer->emit("STORF F" + intToString(defFloatReg) + " F1 " + intToString(i*4));
+				}
+				symbolTable[param].offset[currentBlockDepth] = offset;
+				offset += 4;
+			}
+			// update optional parameters values based on the passed registers
+			// get the number of optional parameters passed
+			int optParamNumReg = currentScopeRegsNumInt++;
+			buffer->emit("LOADI I" + intToString(optParamNumReg) + " I1 -8");
+			// set pointers to the beginning of the optional parameters
+			int ptrRegInt = currentScopeRegsNumInt++;
+			int ptrRegFloat = currentScopeRegsNumFloat++;
+			int optParamStartAddr = -(maxNumParams*4) - 12;
+			buffer->emit("ADD2I I" + intToString(ptrRegInt) + " I1 " + intToString(optParamStartAddr));
+			buffer->emit("CITOF F" + intToString(ptrRegFloat) + " I" + intToString(ptrRegInt));
+			int iReg = currentScopeRegsNumInt++;
+			buffer->emit("COPYI I" + intToString(iReg) + " 0");
+			int nextLabel;
+			int compareReg = currentScopeRegsNumInt++;
+			int loadRegInt = currentScopeRegsNumInt++;
+			int loadRegFloat = currentScopeRegsNumFloat++;
+			for (int i = 0 ; i < maxNumOptionalParams; i++){
+				Type paramType = optParamTypesTmp[i];
+				if (paramType == int_t){
+					// check if the iReg is less than optParamNumReg
+					buffer->emit("SLETI I" + intToString(compareReg) + " I" + intToString(iReg) + " I" + intToString(optParamNumReg));
+					nextLabel = buffer->nextquad() + 6;
+					buffer->emit("BREQZ I" + intToString(compareReg) + " " + intToString(nextLabel));
+					buffer->emit("LOADI I" + intToString(loadRegInt) + " I" + intToString(ptrRegInt) + " 0");
+					buffer->emit("STORI I" +  intToString(loadRegInt) + " I1 " + intToString(i*4));
+					buffer->emit("ADD2I I" + intToString(ptrRegInt) + " I" + intToString(ptrRegInt) + " -4");
+					buffer->emit("CITOF F" + intToString(ptrRegFloat) + " I" + intToString(ptrRegInt));
+					buffer->emit("ADD2I I" + intToString(iReg) + " I" + intToString(iReg) + " 1");
+				}
+				else if (paramType == float_t){
+					// check if the iReg is less than optParamNumReg
+					buffer->emit("SLETI I" + intToString(compareReg) + " I" + intToString(iReg) + " I" + intToString(optParamNumReg));
+					nextLabel = buffer->nextquad() + 6;
+					buffer->emit("BREQZ I" + intToString(compareReg) + " " + intToString(nextLabel));
+					buffer->emit("LOADF F" + intToString(loadRegFloat) + " F" + intToString(ptrRegFloat) + " 0");
+					buffer->emit("STORF F" +  intToString(loadRegFloat) + " F1 " + intToString(i*4));
+					buffer->emit("ADD2F F" + intToString(ptrRegFloat) + " F" + intToString(ptrRegFloat) + " -4");
+					buffer->emit("CFTOI I" + intToString(ptrRegInt) + " F" + intToString(ptrRegFloat));
+					buffer->emit("ADD2I I" + intToString(iReg) + " I" + intToString(iReg) + " 1");
+				}
+			}
+			// insert function to function table
+			Function newFunction;
+			newFunction.returnType = $1.type;
+			newFunction.implemented = false;
+			newFunction.address = startAddress;
+			newFunction.optionalParamsStart = -(maxNumParams*4) - 8;
+			newFunction.optionalParamsNum = maxNumOptionalParams;
+			newFunction.paramTypes = allParamTypes;
+			newFunction.optionalParamsTypes = optParamTypesTmp;
+			// newFunction.optionalParamsValues = currentOptionalParamValues; maybe needed
+			functionTable[$2.str] = newFunction;
+
+			currentOptionalParamInsertionOrder.clear();
+			// reset registers
+			// currentScopeRegsNumInt = 3;
+			// currentScopeRegsNumFloat = 3;
+		}
+		// set current function return type
+		currentReturnType = $1.type;
+		$$.str = $2.str;
+		$$.type = $1.type;
 
 	}
 ;
 
 FUNC_DEF_ARGLIST_OPT : FUNC_DEF_ARGLIST_OPT COMMA DCL_OPT_VAL {
+		cerr << "Function optional argument '" << $3.str << "' of type " << $3.type << endl;
+		// insert parameters to currentOptionalParamInsertionOrder (reverse order)
+		for (int i = tmpOptionalParamInsertionOrder.size()-1; i >= 0 ; i--){
+			currentOptionalParamInsertionOrder.push_back(tmpOptionalParamInsertionOrder[i]);
+		}
+		tmpOptionalParamInsertionOrder.clear();
+		for (int i = tmpOptionalParamValues.size()-1; i >= 0; i--){
+			currentOptionalParamValues.push_back(tmpOptionalParamValues[i]);
+		}
+		tmpOptionalParamValues.clear();
+		vector<Type> paramTypesTmp = $3.paramTypes;
+		reverse(paramTypesTmp.begin(), paramTypesTmp.end());
+		$$.paramTypes = merge($1.paramTypes, paramTypesTmp);
+		$1.paramTypes.clear();
+		$3.paramTypes.clear();
 
 	}
 	| DCL_OPT_VAL{ 
-
+		cerr << "Function optional argument '" << $1.str << "' of type " << $1.type << endl;
+		for (int i = tmpOptionalParamInsertionOrder.size()-1; i >= 0 ; i--){
+			currentOptionalParamInsertionOrder.push_back(tmpOptionalParamInsertionOrder[i]);
+		}
+		tmpOptionalParamInsertionOrder.clear();
+		for (int i = tmpOptionalParamValues.size()-1; i >= 0 ; i--){
+			currentOptionalParamValues.push_back(tmpOptionalParamValues[i]);
+		}
+		tmpOptionalParamValues.clear();
+		$$.paramTypes = $1.paramTypes;
+		reverse($$.paramTypes.begin(), $$.paramTypes.end());
 	}
 ;
 
 DCL_OPT_VAL : ID ASSIGN NUM COLON OPTIONAL TYPE { 
+		cerr << "Optional variable '" << $1.str << "' declared with type " << $6.type <<
+		" and value " << $3.value << endl;
 		// cant declare void
+		if ($6.type == void_t){
+			printSemanticError("Can't declare void");
+		}
+		// check if the variable isnt in the function list parameters
+		if (find(currentParamInsertionOrder.begin(), currentParamInsertionOrder.end(), $1.str) 
+			!= currentParamInsertionOrder.end()){
+			printSemanticError("Variable '" + $1.str + "' already declared as a parameter");
+		}
+		if (find(currentOptionalParamInsertionOrder.begin(), currentOptionalParamInsertionOrder.end(), $1.str) 
+			!= currentOptionalParamInsertionOrder.end()){
+			printSemanticError("Variable '" + $1.str + "' already declared as a parameter");
+		}
+		if ($3.type != $6.type){
+			printSemanticError("Optional variable '" + $1.str + "' declared with different type than value");
+		}
+		previousScopeOffset = currentScopeOffset;
+		$$.str = $1.str;
+		$$.type = $6.type;
+		$$.offset = currentScopeOffset;
+		$$.paramTypes.push_back($6.type);
+
+		// check if the variable is already declared
+		if (symbolTable.find($1.str) == symbolTable.end()){
+			// not found in symbol table, insert it
+			Symbol newSymbol;
+			newSymbol.depth = currentBlockDepth;
+			newSymbol.type[currentBlockDepth] = $6.type;
+			newSymbol.offset[currentBlockDepth] = currentScopeOffset;
+			currentScopeOffset += 4;
+			symbolTable[$1.str] = newSymbol;
+			tmpOptionalParamInsertionOrder.push_back($1.str);
+			tmpOptionalParamValues.push_back($3.value);
+		}
+		else { // found in symbol table
+			printSemanticError("Optional variable '" + $1.str + "' already declared");
+		}
+
 	}
-	| ID ASSIGN NUM COMMA DCL_OPT_VAL { 
+	| ID ASSIGN NUM COMMA DCL_OPT_VAL {
+		cerr << "Optional variable '" << $1.str << "' declared with type " << $5.type <<
+		" and value "<< $3.value << endl;
 		// cant declare void
+		if ($5.type == void_t){
+			printSemanticError("Can't declare void");
+		}
+		// check if the variable isnt in the function list parameters
+		if (find(currentParamInsertionOrder.begin(), currentParamInsertionOrder.end(), $1.str) 
+			!= currentParamInsertionOrder.end()){
+			printSemanticError("Variable '" + $1.str + "' already declared as a parameter");
+		}
+		if (find(tmpParamInsertionOrder.begin(), tmpParamInsertionOrder.end(), $1.str) 
+			!= tmpParamInsertionOrder.end()){
+			printSemanticError("Variable '" + $1.str + "' already declared as a parameter");
+		}
+		if (find(currentOptionalParamInsertionOrder.begin(), currentOptionalParamInsertionOrder.end(), $1.str) 
+			!= currentOptionalParamInsertionOrder.end()){
+			printSemanticError("Variable '" + $1.str + "' already declared as a parameter");
+		}
+
+		if (find(tmpOptionalParamInsertionOrder.begin(), tmpOptionalParamInsertionOrder.end(), $1.str) 
+			!= tmpOptionalParamInsertionOrder.end()){
+			printSemanticError("Variable '" + $1.str + "' already declared as a parameter");
+		}
+		if ($3.type != $5.type){
+			printSemanticError("Optional variable '" + $1.str + "' declared with different type than value");
+		}
+		$$.str = $1.str;
+		$$.type = $5.type;
+		$$.offset = currentScopeOffset;
+		$$.paramTypes = $5.paramTypes;
+		$$.paramTypes.push_back($5.type);
+		if (symbolTable.find($1.str) == symbolTable.end()){
+			// not found in symbol table, insert it
+			Symbol newSymbol;
+			newSymbol.depth = currentBlockDepth;
+			newSymbol.type[currentBlockDepth] = $5.type;
+			newSymbol.offset[currentBlockDepth] = currentScopeOffset;
+			currentScopeOffset += 4;
+			symbolTable[$1.str] = newSymbol;
+			tmpOptionalParamInsertionOrder.push_back($1.str);
+			tmpOptionalParamValues.push_back($3.value);
+		}
+		else { // found in symbol table
+			printSemanticError("Optional variable '" + $1.str + "' already declared");
+		}
+
 	}
 ;
 
@@ -309,7 +866,7 @@ DCL_OPT_VAL : ID ASSIGN NUM COLON OPTIONAL TYPE {
 FUNC_ARGLIST : FUNC_ARGLIST COMMA DCL {
 		cerr << "Function argument '" << $3.str << "' of type " << $3.type << endl;
 		// insert parameters to currentParamInsertionOrder
-		for (int i = 0; i < tmpParamInsertionOrder.size(); i++){
+		for (int i = tmpParamInsertionOrder.size()-1; i >= 0 ; i--){
 			currentParamInsertionOrder.push_back(tmpParamInsertionOrder[i]);
 		}
 		tmpParamInsertionOrder.clear();
@@ -322,7 +879,7 @@ FUNC_ARGLIST : FUNC_ARGLIST COMMA DCL {
 	}
 	| DCL { 
 		cerr << "Function argument '" << $1.str << "' of type " << $1.type << endl;
-		for (int i = 0; i < tmpParamInsertionOrder.size(); i++){
+		for (int i = tmpParamInsertionOrder.size()-1; i >= 0; i--){
 			currentParamInsertionOrder.push_back(tmpParamInsertionOrder[i]);
 		}
 		tmpParamInsertionOrder.clear();
@@ -614,7 +1171,6 @@ READ : READ_ LPAREN LVAL RPAREN SEMICOLON {
 			buffer->emit("STORF F" + intToString(tempRegRead) + " F" + intToString(tempRegConvert) + " 0");
 		}
 	}
-
 ;
 // assignment rules
 /* example
@@ -1042,10 +1598,6 @@ CALL : ID LPAREN CALL_ARGS RPAREN {
 		vector<Type> paramTypes = $3.paramTypes;
 		vector<int> paramRegs = $3.paramRegs;
 		vector<int> paramOffsets;
-		
-		if (numOptionalArgsPassed > 0) {
-			buffer->emit("STORI");
-		}
 		// calculate the size of the stack with all the arguments
 		for (int i = 0; i < paramCount; i++){
 			if (paramTypes[i] == int_t){
