@@ -62,8 +62,7 @@ comment     (#.*)
 {return}                    { return RETURN_; }
 {lparen}                    { return LPAREN; }
 {rparen}                    { return RPAREN; }
-{lbrace}                    { cerr << "LBRACE" << endl;
-                                return LBRACE; }
+{lbrace}                    { return LBRACE; }
 {rbrace}                    { return RBRACE; }
 {comma}                     { return COMMA; }
 {colon}                     { return COLON; }

@@ -1,0 +1,31 @@
+int printer (c: int, m:int, b, d:optional int, x:optional float);
+
+int printer (c: int, m:int, b=6, d=7:optional int, x=10.89:optional float)
+{
+    write("c is: ");
+    write(c);
+    write("\n");
+    write("m is: ");
+    write(m);
+    write("\n");
+    write("b is: ");
+    write(b);
+    write("\n");
+    write("d is: ");
+    write(d);
+    write("\n");
+    write("x is: ");
+    write(x);
+    write("\n");
+    return 1;
+}
+
+void main()
+{
+    printer(10, 9, 4);
+    printer(99, 83);
+    a:int;
+    a=55;
+    printer(a, a, 66, 87, 78.443);
+    #printer(98);
+}

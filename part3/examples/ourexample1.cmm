@@ -1,0 +1,29 @@
+void main()
+{
+    a:int;
+    n:int;
+
+    read(a);
+    n = 0;
+    {
+        write("inside a new block: ");
+        write(n);
+        write("\n");
+        n:int;
+        n = 10;
+        write("after a new declaration: ");
+        write(n);
+        write("\n");
+    }
+    write("went out from the new block: ");
+    write(n);
+    write("\n");
+    while(a <> 0) do {
+      a = a/10;
+      n = n+1;
+    }
+
+    write("\"a\" has ");
+    write(n);
+    write(" digits\n");
+}

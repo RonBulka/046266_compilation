@@ -54,7 +54,6 @@ void Buffer::backpatch(vector<int> lst, int line) {
 }
 
 int Buffer::nextquad() {
-    cerr << "attempting to get nextquad" << endl;
     return this->data.size() + 1;
 }
 
